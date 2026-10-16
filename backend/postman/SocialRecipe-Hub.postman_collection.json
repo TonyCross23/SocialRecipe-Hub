@@ -1,0 +1,544 @@
+{
+  "info": {
+    "_postman_id": "28624618-1db8-4fd1-8538-b0a11aa60f43",
+    "name": "SocialRecipe Hub API",
+    "description": "Complete SocialRecipe Hub API collection. Run Register, then Login first. Successful responses automatically save tokens and created resource IDs into collection variables. Moderation endpoints require an admin or moderator role as described on each request.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Response time is below 3 seconds', function () {",
+          "  pm.expect(pm.response.responseTime).to.be.below(3000);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api/v1" },
+    { "key": "healthUrl", "value": "http://localhost:4000/health" },
+    { "key": "email", "value": "" },
+    { "key": "password", "value": "Recipe test passphrase 123!" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "currentUserId", "value": "" },
+    { "key": "targetUserId", "value": "REPLACE_WITH_ANOTHER_USER_UUID" },
+    { "key": "postId", "value": "" },
+    { "key": "commentId", "value": "" },
+    { "key": "reportId", "value": "" },
+    { "key": "moderationJobId", "value": "REPLACE_WITH_JOB_UUID" },
+    { "key": "metricsToken", "value": "REPLACE_WITH_METRICS_TOKEN" }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "API Root",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}"
+          }
+        },
+        {
+          "name": "Liveness",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{healthUrl}}/live"
+          }
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{healthUrl}}/ready"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const email = `recipe.${Date.now()}@example.com`;",
+                  "pm.collectionVariables.set('email', email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Account is created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('currentUserId', body.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Recipe Chef\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"image\": \"https://example.com/profile.png\",\n  \"dob\": \"1995-04-20\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login succeeds', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "pm.collectionVariables.set('refreshToken', body.refreshToken);",
+                  "pm.collectionVariables.set('currentUserId', body.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "My Profile",
+          "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" }
+        },
+        {
+          "name": "Refresh Tokens",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Tokens are rotated', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "pm.collectionVariables.set('refreshToken', body.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/refresh"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/auth/logout",
+            "description": "Run this request last because it immediately invalidates the current access and refresh tokens."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Social",
+      "item": [
+        {
+          "name": "Follow User",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/social/users/{{targetUserId}}/follow",
+            "description": "Set targetUserId to another registered user's UUID. A user cannot follow themself."
+          }
+        },
+        {
+          "name": "Unfollow User",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/social/users/{{targetUserId}}/follow"
+          }
+        },
+        {
+          "name": "Get User Followers",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/social/users/{{targetUserId}}/followers?page=1&limit=20"
+          }
+        },
+        {
+          "name": "Get User Following",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/social/users/{{targetUserId}}/following?page=1&limit=20"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Posts",
+      "item": [
+        {
+          "name": "Create Post",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Post is created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set('postId', pm.response.json().post.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Easy noodle recipe\",\n  \"content\": \"Boil noodles and add the sauce.\",\n  \"images\": [\n    \"https://example.com/noodles-1.jpg\",\n    \"https://example.com/noodles-2.jpg\"\n  ],\n  \"visibility\": \"PUBLIC\"\n}"
+            },
+            "url": "{{baseUrl}}/posts"
+          }
+        },
+        {
+          "name": "Create Text-only Post",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Kitchen tip\",\n  \"content\": \"Rest the dough before shaping it.\",\n  \"images\": [],\n  \"visibility\": \"PUBLIC\"\n}"
+            },
+            "url": "{{baseUrl}}/posts"
+          }
+        },
+        {
+          "name": "Get Feed",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/posts/feed?page=1&limit=20"
+          }
+        },
+        {
+          "name": "Like Post",
+          "request": { "method": "PUT", "url": "{{baseUrl}}/posts/{{postId}}/likes" }
+        },
+        {
+          "name": "Unlike Post",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/posts/{{postId}}/likes"
+          }
+        },
+        {
+          "name": "Create Comment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Comment is created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set('commentId', pm.response.json().comment.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"This recipe worked very well.\"\n}"
+            },
+            "url": "{{baseUrl}}/posts/{{postId}}/comments"
+          }
+        },
+        {
+          "name": "Create Reply",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Thank you for trying it!\",\n  \"parentId\": \"{{commentId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/posts/{{postId}}/comments"
+          }
+        },
+        {
+          "name": "Get Comments",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/posts/{{postId}}/comments?page=1&limit=20"
+          }
+        },
+        {
+          "name": "Like Comment",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/posts/{{postId}}/comments/{{commentId}}/likes"
+          }
+        },
+        {
+          "name": "Unlike Comment",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/posts/{{postId}}/comments/{{commentId}}/likes"
+          }
+        },
+        {
+          "name": "Share Post",
+          "request": { "method": "POST", "url": "{{baseUrl}}/posts/{{postId}}/share" }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Report Post",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Report is created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set('reportId', pm.response.json().report.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"This post contains content that should be reviewed.\",\n  \"postId\": \"{{postId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/reports"
+          }
+        },
+        {
+          "name": "Report Comment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"This comment should be reviewed by a moderator.\",\n  \"commentId\": \"{{commentId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/reports"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Moderation - Admin",
+      "description": "The reports endpoints require moderation:review. Policy endpoints require policy:manage. Change the test account to moderator/admin in PostgreSQL before running these requests.",
+      "item": [
+        {
+          "name": "List Reports",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/moderation/reports?page=1&limit=20&status=PENDING"
+          }
+        },
+        {
+          "name": "Review Report",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"REVIEWED\"\n}" },
+            "url": "{{baseUrl}}/moderation/reports/{{reportId}}"
+          }
+        },
+        {
+          "name": "Ban Reported Post",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"BAN_CONTENT\",\n  \"reason\": \"The reported post violates community policy.\"\n}"
+            },
+            "url": "{{baseUrl}}/moderation/reports/{{reportId}}/action",
+            "description": "Bans only the reported post. The author's user account remains active."
+          }
+        },
+        {
+          "name": "List Policies",
+          "request": { "method": "GET", "url": "{{baseUrl}}/moderation/policies" }
+        },
+        {
+          "name": "Enable AI Moderation",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"value\": true\n}" },
+            "url": "{{baseUrl}}/moderation/policies/moderation.enabled"
+          }
+        },
+        {
+          "name": "Update Banned Keywords",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": [\"unsafe-term\", \"spam-keyword\"]\n}"
+            },
+            "url": "{{baseUrl}}/moderation/policies/moderation.bannedKeywords"
+          }
+        },
+        {
+          "name": "Update Moderation Policy",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"Disallow harassment, hate speech, threats, spam, and dangerous food advice.\"\n}"
+            },
+            "url": "{{baseUrl}}/moderation/policies/moderation.policy"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Administration",
+      "description": "Requires the admin:read permission. The seeded admin role includes this permission.",
+      "item": [
+        {
+          "name": "Dashboard Metrics",
+          "request": { "method": "GET", "url": "{{baseUrl}}/admin/dashboard" }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/users?page=1&limit=20"
+          }
+        },
+        {
+          "name": "List Admin Users",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/users?page=1&limit=20&role=admin"
+          }
+        },
+        {
+          "name": "Ban User Account",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Repeated violations of community policy.\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/users/{{targetUserId}}/ban"
+          }
+        },
+        {
+          "name": "Unban User Account",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/users/{{targetUserId}}/ban" }
+        },
+        {
+          "name": "Notifications",
+          "request": { "method": "GET", "url": "{{baseUrl}}/admin/notifications?limit=20" }
+        },
+        {
+          "name": "Live Monitoring",
+          "request": { "method": "GET", "url": "{{baseUrl}}/admin/monitoring" }
+        },
+        {
+          "name": "AI Audit Logs",
+          "request": { "method": "GET", "url": "{{baseUrl}}/admin/audit-logs?page=1&limit=20" }
+        },
+        {
+          "name": "Override AI Decision",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"action\": \"APPROVE\"\n}" },
+            "url": "{{baseUrl}}/admin/audit-logs/{{moderationJobId}}/override"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Monitoring",
+      "item": [
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{metricsToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": "http://localhost:4000/metrics",
+            "description": "Uses the separate METRICS_TOKEN, not an admin access token."
+          }
+        }
+      ]
+    }
+  ]
+}

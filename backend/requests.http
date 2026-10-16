@@ -1,0 +1,46 @@
+@baseUrl = http://localhost:4000
+@accessToken = replace-after-login
+@refreshToken = replace-after-login-or-refresh
+
+### Register
+POST {{baseUrl}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Recipe Chef",
+  "email": "chef@example.com",
+  "password": "a long unique passphrase!",
+  "dob": "1995-04-20",
+  "image": "https://example.com/avatar.png"
+}
+
+### Login
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "chef@example.com",
+  "password": "a long unique passphrase!"
+}
+
+### Profile
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{accessToken}}
+
+### Refresh — replace BOTH token variables after each successful response
+POST {{baseUrl}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Logout
+POST {{baseUrl}}/api/v1/auth/logout
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{}
+
+### Readiness
+GET {{baseUrl}}/health/ready

@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PostStatus {
+  PUBLISHED
+  FLAGGED
+  BANNED
+  DELETED
+}
+
+enum PostVisibility {
+  PUBLIC
+  FOLLOWERS
+  PRIVATE
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+  ACTIONED
+}
+
+enum ModerationStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  FLAGGED
+  FAILED
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+}
+
+model User {
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String         @db.VarChar(100)
+  email         String         @unique @db.VarChar(254)
+  passwordHash  String         @map("password") @db.Text
+  image         String?        @db.VarChar(2048)
+  dob           DateTime       @db.Date
+  roleId        String         @db.Uuid
+  status        UserStatus     @default(ACTIVE)
+  bannedAt      DateTime?      @db.Timestamptz(3)
+  bannedReason  String?        @db.VarChar(1000)
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @db.Timestamptz(3)
+  role          Role           @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  followers     Follow[]       @relation("Following")
+  following     Follow[]       @relation("Follower")
+  posts         Post[]
+  comments      Comment[]
+  likes         Like[]
+  reports       Report[]
+  sessions      AuthSession[]
+  refreshTokens RefreshToken[]
+  notifications Notification[]
+
+  @@index([roleId])
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  type      String    @db.VarChar(50)
+  title     String    @db.VarChar(200)
+  message   String    @db.VarChar(1000)
+  data      Json?
+  readAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt, id])
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique @db.VarChar(50)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique @db.VarChar(100)
+  description String?          @db.Text
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model Follow {
+  followerId  String   @db.Uuid
+  followingId String   @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId, createdAt, followerId])
+  @@index([followerId, createdAt, followingId])
+}
+
+model Post {
+  id             String          @id @default(uuid()) @db.Uuid
+  title          String          @db.VarChar(200)
+  content        String          @db.Text
+  images         String[]        @default([])
+  sharesCount    Int             @default(0)
+  status         PostStatus      @default(PUBLISHED)
+  visibility     PostVisibility  @default(PUBLIC)
+  userId         String          @db.Uuid
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments       Comment[]
+  likes          Like[]
+  reports        Report[]
+  moderationJobs ModerationJob[]
+
+  @@index([status, visibility, createdAt, id])
+  @@index([userId, createdAt, id])
+}
+
+model Comment {
+  id             String          @id @default(uuid()) @db.Uuid
+  content        String          @db.Text
+  status         PostStatus      @default(PUBLISHED)
+  postId         String          @db.Uuid
+  userId         String          @db.Uuid
+  parentId       String?         @db.Uuid
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+  post           Post            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Composite relation prevents replies to comments on a different post.
+  parent         Comment?        @relation("Replies", fields: [parentId, postId], references: [id, postId], onDelete: NoAction, onUpdate: NoAction)
+  replies        Comment[]       @relation("Replies")
+  likes          Like[]
+  reports        Report[]
+  moderationJobs ModerationJob[]
+
+  @@unique([id, postId])
+  @@index([postId, createdAt, id])
+  @@index([parentId, postId])
+  @@index([userId])
+}
+
+model Like {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  postId    String?  @db.Uuid
+  commentId String?  @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@index([postId])
+  @@index([commentId])
+}
+
+model Report {
+  id         String       @id @default(uuid()) @db.Uuid
+  reason     String       @db.VarChar(2000)
+  status     ReportStatus @default(PENDING)
+  reporterId String       @db.Uuid
+  postId     String?      @db.Uuid
+  commentId  String?      @db.Uuid
+  createdAt  DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime     @updatedAt @db.Timestamptz(3)
+  reporter   User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  post       Post?        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment    Comment?     @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt, id])
+  @@index([reporterId])
+  @@index([postId])
+  @@index([commentId])
+}
+
+model PolicySetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique @db.VarChar(100)
+  value       Json
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+}
+
+// Durable outbox for the later moderation worker. Create atomically with content.
+model ModerationJob {
+  id          String           @id @default(uuid()) @db.Uuid
+  postId      String?          @db.Uuid
+  commentId   String?          @db.Uuid
+  status      ModerationStatus @default(PENDING)
+  attempts    Int              @default(0)
+  availableAt DateTime         @default(now()) @db.Timestamptz(3)
+  lockedAt    DateTime?        @db.Timestamptz(3)
+  result      Json?
+  lastError   String?          @db.Text
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+  post        Post?            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment     Comment?         @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt, id])
+  @@index([postId])
+  @@index([commentId])
+}
+
+model AuthSession {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  expiresAt DateTime       @db.Timestamptz(3)
+  revokedAt DateTime?      @db.Timestamptz(3)
+  createdAt DateTime       @default(now()) @db.Timestamptz(3)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokens    RefreshToken[]
+
+  @@unique([id, userId])
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        String      @id @db.Uuid
+  tokenHash String      @unique @db.Char(64)
+  userId    String      @db.Uuid
+  sessionId String      @db.Uuid
+  expiresAt DateTime    @db.Timestamptz(3)
+  usedAt    DateTime?   @db.Timestamptz(3)
+  createdAt DateTime    @default(now()) @db.Timestamptz(3)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session   AuthSession @relation(fields: [sessionId, userId], references: [id, userId], onDelete: Cascade)
+
+  @@index([sessionId, userId])
+  @@index([expiresAt])
+}

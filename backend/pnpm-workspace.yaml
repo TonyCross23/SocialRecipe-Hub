@@ -1,0 +1,25 @@
+allowBuilds:
+  '@prisma/engines': set this to true or false
+  '@scarf/scarf': set this to true or false
+  argon2: set this to true or false
+  esbuild: set this to true or false
+  prisma: set this to true or false
+minimumReleaseAgeExclude:
+  - '@prisma/adapter-pg@7.10.1'
+  - '@prisma/client-runtime-utils@7.10.1'
+  - '@prisma/client@7.10.1'
+  - '@prisma/config@7.10.1'
+  - '@prisma/debug@7.10.1'
+  - '@prisma/driver-adapter-utils@7.10.1'
+  - '@prisma/engines@7.10.1'
+  - '@prisma/fetch-engine@7.10.1'
+  - '@prisma/get-platform@7.10.1'
+  - '@vitest/expect@4.1.12'
+  - '@vitest/mocker@4.1.12'
+  - '@vitest/pretty-format@4.1.12'
+  - '@vitest/runner@4.1.12'
+  - '@vitest/snapshot@4.1.12'
+  - '@vitest/spy@4.1.12'
+  - '@vitest/utils@4.1.12'
+  - prisma@7.10.1
+  - vitest@4.1.12

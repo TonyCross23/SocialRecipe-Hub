@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; background: #fafaf9; }
+button, input, textarea, select { font: inherit; }
+.field { width: 100%; border: 1px solid #e7e5e4; border-radius: .75rem; background: white; padding: .7rem .8rem; outline: none; font-size: .875rem; }
+.field:focus { border-color: #047857; box-shadow: 0 0 0 3px #d1fae5; }
+.data-table { width: 100%; min-width: 780px; border-collapse: collapse; text-align: left; font-size: .875rem; }
+.data-table th { background: #fafaf9; padding: .85rem 1rem; color: #78716c; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; }
+.data-table td { border-top: 1px solid #f0efed; padding: .9rem 1rem; vertical-align: middle; }
+.data-table td small { display: block; margin-top: .2rem; color: #78716c; }
