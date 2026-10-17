@@ -22,7 +22,12 @@ export class SocialController {
   followers = async (request: Request, response: Response) => {
     const { userId } = userIdParamsDto.parse(request.params);
     const { page, limit } = paginationDto.parse(request.query);
-    const result = await this.social.getFollowers(userId, page, limit);
+    const result = await this.social.getFollowers(
+      userId,
+      page,
+      limit,
+      response.locals.actor!.user.id,
+    );
 
     response.json(result);
   };
@@ -30,7 +35,12 @@ export class SocialController {
   following = async (request: Request, response: Response) => {
     const { userId } = userIdParamsDto.parse(request.params);
     const { page, limit } = paginationDto.parse(request.query);
-    const result = await this.social.getFollowing(userId, page, limit);
+    const result = await this.social.getFollowing(
+      userId,
+      page,
+      limit,
+      response.locals.actor!.user.id,
+    );
 
     response.json(result);
   };

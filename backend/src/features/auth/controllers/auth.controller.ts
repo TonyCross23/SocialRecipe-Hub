@@ -1,16 +1,9 @@
 import type { Request, Response } from 'express';
-import { loginDto, logoutDto, refreshTokenDto, registerDto } from '../dto/auth.dto.js';
+import { loginDto, logoutDto, refreshTokenDto } from '../dto/auth.dto.js';
 import type { AuthUseCases } from '../use-cases/auth.use-cases.js';
 
 export class AuthController {
   constructor(private readonly auth: AuthUseCases) {}
-
-  register = async (request: Request, response: Response) => {
-    const input = registerDto.parse(request.body);
-    const result = await this.auth.register(input);
-
-    response.status(201).json(result);
-  };
 
   login = async (request: Request, response: Response) => {
     const input = loginDto.parse(request.body);

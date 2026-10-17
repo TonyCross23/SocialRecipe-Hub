@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+coverage/
+builds/
+android/
+ios/
+.env
+.env.*
+!.env.example
+*.keystore
+credentials.json
+
+*firebase-adminsdk*.json

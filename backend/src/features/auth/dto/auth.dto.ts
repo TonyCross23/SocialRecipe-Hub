@@ -34,4 +34,13 @@ export const refreshTokenDto = z.strictObject({
   refreshToken: z.string().min(1).max(4096),
 });
 
+export const changePasswordDto = z.strictObject({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: passwordSchema,
+});
+
 export const logoutDto = z.strictObject({});
+
+export const updateProfileDto = registerDto
+  .pick({ name: true, dob: true, image: true })
+  .required({ image: true });

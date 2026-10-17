@@ -1,3 +1,4 @@
+import { PushWorker } from './features/push/push.worker.js';
 import { pino } from 'pino';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
@@ -29,6 +30,10 @@ const moderationWorker = config.OPENAI_API_KEY
     )
   : undefined;
 moderationWorker?.start();
+const pushWorker = config.PUSH_ENABLED
+  ? new PushWorker(database, logger, config.EXPO_PUSH_ACCESS_TOKEN)
+  : undefined;
+pushWorker?.start();
 
 server.requestTimeout = 30_000;
 server.headersTimeout = 15_000;
@@ -41,10 +46,12 @@ function shutdown() {
 
   const deadline = setTimeout(() => process.exit(1), 10_000).unref();
   server.close(() => {
-    void database.$disconnect().then(() => {
-      clearTimeout(deadline);
-      process.exit(0);
-    });
+    void Promise.resolve(pushWorker?.stop())
+      .then(() => database.$disconnect())
+      .then(() => {
+        clearTimeout(deadline);
+        process.exit(0);
+      });
   });
 }
 

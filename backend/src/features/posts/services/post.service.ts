@@ -34,16 +34,22 @@ export class PostService {
     );
   }
 
-  getComments(userId: string, postId: string, page: number, limit: number) {
-    return this.repository.getComments(userId, postId, page, limit);
+  getComments(
+    userId: string,
+    postId: string,
+    page: number,
+    limit: number,
+    sort: 'oldest' | 'newest' = 'oldest',
+  ) {
+    return this.repository.getComments(userId, postId, page, limit, sort);
   }
 
-  postExists(postId: string) {
-    return this.repository.postExists(postId);
+  postExists(postId: string, viewerId?: string) {
+    return this.repository.postExists(postId, viewerId);
   }
 
-  commentBelongsToPost(commentId: string, postId: string) {
-    return this.repository.commentBelongsToPost(commentId, postId);
+  commentBelongsToPost(commentId: string, postId: string, viewerId?: string) {
+    return this.repository.commentBelongsToPost(commentId, postId, viewerId);
   }
 
   likePost(userId: string, postId: string) {

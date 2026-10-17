@@ -31,13 +31,63 @@ const configSchema = z
       (value) => (value === '' ? undefined : value),
       z.string().min(20).optional(),
     ),
+    GROQ_API_KEY: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.string().min(20).optional(),
+    ),
+    SMTP_HOST: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(1025),
+    SMTP_SECURE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
+    SMTP_REQUIRE_TLS: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
+    SMTP_FROM: z.string().default('SocialRecipe <no-reply@socialrecipe.local>'),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASSWORD: z.string().optional(),
+    PUSH_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
+    EXPO_PUSH_ACCESS_TOKEN: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(20).optional(),
+    ),
+    GROQ_CHAT_MODEL: z.string().min(1).default('openai/gpt-oss-120b'),
+    AI_CHAT_LANGUAGE: z.enum(['english', 'auto', 'burmese']).default('english'),
     OPENAI_MODERATION_MODEL: z.string().min(1).default('omni-moderation-latest'),
     MODERATION_WORKER_INTERVAL_MS: z.coerce.number().int().min(1000).max(60000).default(5000),
     METRICS_TOKEN: z.preprocess(
       (value) => (value === '' ? undefined : value),
       z.string().min(32).optional(),
     ),
+    CLOUDINARY_CLOUD_NAME: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z
+        .string()
+        .regex(/^[a-zA-Z0-9_-]+$/)
+        .optional(),
+    ),
+    CLOUDINARY_API_KEY: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    CLOUDINARY_API_SECRET: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.string().min(1).optional(),
+    ),
   })
+  .refine((config) => {
+    const present = [
+      config.CLOUDINARY_CLOUD_NAME,
+      config.CLOUDINARY_API_KEY,
+      config.CLOUDINARY_API_SECRET,
+    ].filter(Boolean).length;
+    return present === 0 || present === 3;
+  }, 'Set all three Cloudinary credentials together, or leave all three empty')
   .refine(
     (config) => config.JWT_ACCESS_SECRET !== config.JWT_REFRESH_SECRET,
     'Access and refresh secrets must differ',

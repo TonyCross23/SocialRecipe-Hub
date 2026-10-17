@@ -31,6 +31,10 @@ export class AuthUseCases {
     return { user };
   }
 
+  async updateProfile(userId: string, input: { name: string; dob: string; image: string | null }) {
+    return { user: await this.repository.updateProfile(userId, input) };
+  }
+
   async login(input: { email: string; password: string }) {
     const account = await this.repository.findByEmail(input.email);
 
@@ -39,13 +43,13 @@ export class AuthUseCases {
       throw unauthorized();
     }
 
-    if (account.profile.status === 'BANNED') {
-      throw new AppError(403, 'ACCOUNT_BANNED', account.profile.bannedReason ?? 'Account banned');
-    }
-
     const passwordIsValid = await this.passwords.verify(account.passwordHash, input.password);
     if (!passwordIsValid) {
       throw unauthorized();
+    }
+
+    if (account.profile.status === 'BANNED') {
+      throw new AppError(403, 'ACCOUNT_BANNED', account.profile.bannedReason ?? 'Account banned');
     }
 
     const now = this.clock();
@@ -112,6 +116,26 @@ export class AuthUseCases {
     }
 
     return { user, sessionId: claims.sessionId };
+  }
+
+  async changePassword(
+    userId: string,
+    email: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const account = await this.repository.findByEmail(email);
+    if (
+      !account ||
+      account.profile.id !== userId ||
+      !(await this.passwords.verify(account.passwordHash, currentPassword))
+    )
+      throw new AppError(400, 'INCORRECT_PASSWORD', 'Your current password is incorrect.');
+    if (await this.passwords.verify(account.passwordHash, newPassword))
+      throw new AppError(400, 'PASSWORD_UNCHANGED', 'Choose a different password.');
+    const hash = await this.passwords.hash(newPassword);
+    if (!(await this.repository.changePassword(userId, account.passwordHash, hash, this.clock())))
+      throw new AppError(409, 'PASSWORD_CHANGED', 'Your password changed. Please sign in again.');
   }
 
   async logout(sessionId: string, userId: string) {

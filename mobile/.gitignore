@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+coverage/
+.env
+*.tsbuildinfo
+builds/
+*.keystore
+credentials.json
+
+google-services.json
+*firebase-adminsdk*.json

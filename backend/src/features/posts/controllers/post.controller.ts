@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import {
+  commentPaginationDto,
   createCommentDto,
   createPostDto,
   postCommentParamsDto,
@@ -37,12 +38,13 @@ export class PostController {
 
   comments = async (request: Request, response: Response) => {
     const { postId } = postIdParamsDto.parse(request.params);
-    const { page, limit } = postPaginationDto.parse(request.query);
+    const { page, limit, sort } = commentPaginationDto.parse(request.query);
     const result = await this.posts.getComments(
       response.locals.actor!.user.id,
       postId,
       page,
       limit,
+      sort,
     );
     response.json(result);
   };
@@ -71,6 +73,6 @@ export class PostController {
 
   share = async (request: Request, response: Response) => {
     const { postId } = postIdParamsDto.parse(request.params);
-    response.json(await this.posts.share(postId));
+    response.json(await this.posts.share(postId, response.locals.actor!.user.id));
   };
 }

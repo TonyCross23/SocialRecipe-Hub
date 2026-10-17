@@ -41,43 +41,60 @@ enum UserStatus {
 }
 
 model User {
-  id            String         @id @default(uuid()) @db.Uuid
-  name          String         @db.VarChar(100)
-  email         String         @unique @db.VarChar(254)
-  passwordHash  String         @map("password") @db.Text
-  image         String?        @db.VarChar(2048)
-  dob           DateTime       @db.Date
-  roleId        String         @db.Uuid
-  status        UserStatus     @default(ACTIVE)
-  bannedAt      DateTime?      @db.Timestamptz(3)
-  bannedReason  String?        @db.VarChar(1000)
-  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime       @updatedAt @db.Timestamptz(3)
-  role          Role           @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  followers     Follow[]       @relation("Following")
-  following     Follow[]       @relation("Follower")
-  posts         Post[]
-  comments      Comment[]
-  likes         Like[]
-  reports       Report[]
-  sessions      AuthSession[]
-  refreshTokens RefreshToken[]
-  notifications Notification[]
+  id                String         @id @default(uuid()) @db.Uuid
+  name              String         @db.VarChar(100)
+  email             String         @unique @db.VarChar(254)
+  emailVerifiedAt   DateTime?      @db.Timestamptz(3)
+  passwordHash      String         @map("password") @db.Text
+  image             String?        @db.VarChar(2048)
+  dob               DateTime       @db.Date
+  roleId            String         @db.Uuid
+  status            UserStatus     @default(ACTIVE)
+  bannedAt          DateTime?      @db.Timestamptz(3)
+  bannedReason      String?        @db.VarChar(1000)
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+  role              Role           @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  followers         Follow[]       @relation("Following")
+  following         Follow[]       @relation("Follower")
+  posts             Post[]
+  comments          Comment[]
+  likes             Like[]
+  reports           Report[]
+  sessions          AuthSession[]
+  refreshTokens     RefreshToken[]
+  notifications     Notification[] @relation("Recipient")
+  sentNotifications Notification[] @relation("NotificationActor")
+  savedPosts        SavedPost[]
+  contentFilters    UserFilter[]   @relation("FilterActor")
+  filteredBy        UserFilter[]   @relation("FilterTarget")
+  shoppingLists     ShoppingList[]
+  pushDevices       PushDevice[]
+
+  passwordResets  PasswordReset[]
+  appeals         BanAppeal[]     @relation("Applicant")
+  reviewedAppeals BanAppeal[]     @relation("Reviewer")
 
   @@index([roleId])
 }
 
 model Notification {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @db.Uuid
-  type      String    @db.VarChar(50)
-  title     String    @db.VarChar(200)
-  message   String    @db.VarChar(1000)
-  data      Json?
-  readAt    DateTime? @db.Timestamptz(3)
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String         @id @default(uuid()) @db.Uuid
+  userId       String         @db.Uuid
+  type         String         @db.VarChar(50)
+  title        String         @db.VarChar(200)
+  message      String         @db.VarChar(1000)
+  data         Json?
+  readAt       DateTime?      @db.Timestamptz(3)
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+  user         User           @relation("Recipient", fields: [userId], references: [id], onDelete: Cascade)
+  actorId      String?        @db.Uuid
+  actor        User?          @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  pushQueuedAt DateTime?      @db.Timestamptz(3)
+  deliveries   PushDelivery[]
 
+  @@index([actorId])
+  @@index([pushQueuedAt, createdAt])
   @@index([userId, readAt, createdAt, id])
 }
 
@@ -125,6 +142,10 @@ model Post {
   content        String          @db.Text
   images         String[]        @default([])
   sharesCount    Int             @default(0)
+  isRepost       Boolean         @default(false)
+  sharedPostId   String?         @db.Uuid
+  sharedPost     Post?           @relation("Reposts", fields: [sharedPostId], references: [id], onDelete: SetNull)
+  reposts        Post[]          @relation("Reposts")
   status         PostStatus      @default(PUBLISHED)
   visibility     PostVisibility  @default(PUBLIC)
   userId         String          @db.Uuid
@@ -135,7 +156,10 @@ model Post {
   likes          Like[]
   reports        Report[]
   moderationJobs ModerationJob[]
+  recipe         Json?
+  savedBy        SavedPost[]
 
+  @@index([sharedPostId])
   @@index([status, visibility, createdAt, id])
   @@index([userId, createdAt, id])
 }
@@ -230,13 +254,14 @@ model ModerationJob {
 }
 
 model AuthSession {
-  id        String         @id @default(uuid()) @db.Uuid
-  userId    String         @db.Uuid
-  expiresAt DateTime       @db.Timestamptz(3)
-  revokedAt DateTime?      @db.Timestamptz(3)
-  createdAt DateTime       @default(now()) @db.Timestamptz(3)
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokens    RefreshToken[]
+  id          String         @id @default(uuid()) @db.Uuid
+  userId      String         @db.Uuid
+  expiresAt   DateTime       @db.Timestamptz(3)
+  revokedAt   DateTime?      @db.Timestamptz(3)
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokens      RefreshToken[]
+  pushDevices PushDevice[]
 
   @@unique([id, userId])
   @@index([userId, revokedAt])
@@ -256,4 +281,132 @@ model RefreshToken {
 
   @@index([sessionId, userId])
   @@index([expiresAt])
+}
+
+model SavedPost {
+  userId    String   @db.Uuid
+  postId    String   @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([userId, createdAt, postId])
+  @@index([postId])
+}
+
+model UserFilter {
+  actorId   String   @db.Uuid
+  targetId  String   @db.Uuid
+  kind      String   @db.VarChar(5)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  actor     User     @relation("FilterActor", fields: [actorId], references: [id], onDelete: Cascade)
+  target    User     @relation("FilterTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@id([actorId, targetId, kind])
+  @@index([targetId, kind])
+}
+
+model ShoppingList {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  title     String         @db.VarChar(200)
+  createdAt DateTime       @default(now()) @db.Timestamptz(3)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     ShoppingItem[]
+
+  @@index([userId, createdAt, id])
+}
+
+model ShoppingItem {
+  id       String       @id @default(uuid()) @db.Uuid
+  listId   String       @db.Uuid
+  name     String       @db.VarChar(200)
+  quantity String       @db.VarChar(100)
+  checked  Boolean      @default(false)
+  position Int
+  list     ShoppingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@index([listId, position])
+}
+
+model PushDevice {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @db.Uuid
+  sessionId  String         @db.Uuid
+  token      String         @unique @db.VarChar(256)
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session    AuthSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  deliveries PushDelivery[]
+
+  @@index([userId])
+  @@index([sessionId])
+}
+
+model PushDelivery {
+  id             String       @id @default(uuid()) @db.Uuid
+  notificationId String       @db.Uuid
+  deviceId       String       @db.Uuid
+  status         String       @default("PENDING") @db.VarChar(12)
+  attempts       Int          @default(0)
+  availableAt    DateTime     @default(now()) @db.Timestamptz(3)
+  lockedAt       DateTime?    @db.Timestamptz(3)
+  ticketId       String?      @db.VarChar(100)
+  lastError      String?      @db.VarChar(100)
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  device         PushDevice   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, deviceId])
+  @@index([status, availableAt])
+}
+
+model PasswordReset {
+  id        String    @id @db.Uuid
+  userId    String    @db.Uuid
+  codeHash  String    @db.Char(64)
+  attempts  Int       @default(0)
+  expiresAt DateTime  @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+model BanAppeal {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  bannedAt   DateTime  @db.Timestamptz(3)
+  message    String    @db.VarChar(2000)
+  status     String    @default("PENDING") @db.VarChar(10)
+  response   String?   @db.VarChar(1000)
+  reviewerId String?   @db.Uuid
+  reviewedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  user       User      @relation("Applicant", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer   User?     @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt, id])
+  @@index([userId, createdAt])
+  @@index([reviewerId])
+}
+
+model PendingRegistration {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @db.VarChar(254)
+  name         String    @db.VarChar(100)
+  passwordHash String    @db.Text
+  dob          DateTime  @db.Date
+  codeHash     String    @db.Char(64)
+  attempts     Int       @default(0)
+  sends        Int       @default(1)
+  lastSentAt   DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt    DateTime  @db.Timestamptz(3)
+  usedAt       DateTime? @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([email, createdAt])
+  @@index([createdAt])
 }

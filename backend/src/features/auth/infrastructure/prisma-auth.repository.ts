@@ -62,6 +62,30 @@ export class PrismaAuthRepository implements AuthRepository {
     return user ? { profile: toPublicUser(user), passwordHash: user.passwordHash } : null;
   }
 
+  async changePassword(userId: string, previousHash: string, nextHash: string, now: Date) {
+    return this.database.$transaction(async (tx) => {
+      const changed = await tx.user.updateMany({
+        where: { id: userId, passwordHash: previousHash, status: 'ACTIVE' },
+        data: { passwordHash: nextHash },
+      });
+      if (!changed.count) return false;
+      await tx.authSession.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      return true;
+    });
+  }
+
+  async updateProfile(userId: string, input: { name: string; dob: string; image: string | null }) {
+    const user = await this.database.user.update({
+      where: { id: userId, status: 'ACTIVE' },
+      data: { name: input.name, dob: new Date(`${input.dob}T00:00:00Z`), image: input.image },
+      include: profileInclude,
+    });
+    return toPublicUser(user);
+  }
+
   async getProfile(userId: string) {
     const user = await this.database.user.findUnique({
       where: { id: userId },

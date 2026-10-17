@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "SocialRecipe Hub",
+    "slug": "socialrecipe-hub",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "socialrecipe",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.socialrecipe.hub"
+    },
+    "android": {
+      "package": "com.socialrecipe.hub"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choose photos for your recipes and profile.",
+          "cameraPermission": "Take photos for your recipes and profile.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-secure-store",
+      "@react-native-community/datetimepicker",
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "color": "#0866FF",
+          "defaultChannel": "community"
+        }
+      ]
+    ]
+  }
+}

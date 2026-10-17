@@ -26,18 +26,18 @@ export class SocialUseCases {
     return { following: false };
   }
 
-  async getFollowers(userId: string, page: number, limit: number) {
-    await this.ensureUserExists(userId);
-    return this.social.getFollowers(userId, page, limit);
+  async getFollowers(userId: string, page: number, limit: number, viewerId?: string) {
+    await this.ensureUserExists(userId, viewerId);
+    return this.social.getFollowers(userId, page, limit, viewerId);
   }
 
-  async getFollowing(userId: string, page: number, limit: number) {
-    await this.ensureUserExists(userId);
-    return this.social.getFollowing(userId, page, limit);
+  async getFollowing(userId: string, page: number, limit: number, viewerId?: string) {
+    await this.ensureUserExists(userId, viewerId);
+    return this.social.getFollowing(userId, page, limit, viewerId);
   }
 
-  private async ensureUserExists(userId: string) {
-    if (!(await this.social.userExists(userId))) {
+  private async ensureUserExists(userId: string, viewerId?: string) {
+    if (!(await this.social.userExists(userId, viewerId))) {
       throw notFound('User');
     }
   }

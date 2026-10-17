@@ -34,7 +34,7 @@ export class PrismaModerationJobRepository {
       const job = await transaction.moderationJob.findUniqueOrThrow({
         where: { id: jobId },
         include: {
-          post: { select: { id: true, title: true, content: true } },
+          post: { select: { id: true, title: true, content: true, recipe: true } },
           comment: { select: { id: true, content: true } },
         },
       });
@@ -44,7 +44,7 @@ export class PrismaModerationJobRepository {
           id: job.id,
           targetType: 'post',
           targetId: job.post.id,
-          text: `${job.post.title}\n${job.post.content}`,
+          text: `${job.post.title}\n${job.post.content}\n${job.post.recipe ? JSON.stringify(job.post.recipe) : ''}`,
           attempts: job.attempts,
         };
       }
@@ -68,8 +68,13 @@ export class PrismaModerationJobRepository {
 
   async complete(job: ModerationJobContent, flagged: boolean, categories: string[]) {
     await this.database.$transaction(async (transaction) => {
-      await transaction.moderationJob.update({
-        where: { id: job.id },
+      // Lock content before the job, matching owner-edit/delete lock order.
+      if (job.targetType === 'post')
+        await transaction.$queryRaw`SELECT "id" FROM "Post" WHERE "id" = ${job.targetId}::uuid FOR UPDATE`;
+      else
+        await transaction.$queryRaw`SELECT "id" FROM "Comment" WHERE "id" = ${job.targetId}::uuid FOR UPDATE`;
+      const completed = await transaction.moderationJob.updateMany({
+        where: { id: job.id, status: 'PROCESSING' },
         data: {
           status: flagged ? 'FLAGGED' : 'APPROVED',
           result: { flagged, categories },
@@ -78,15 +83,15 @@ export class PrismaModerationJobRepository {
         },
       });
 
-      if (!flagged) return;
+      if (!completed.count || !flagged) return;
       if (job.targetType === 'post') {
         await transaction.post.updateMany({
-          where: { id: job.targetId, status: { not: 'DELETED' } },
+          where: { id: job.targetId, status: { in: ['PUBLISHED', 'FLAGGED'] } },
           data: { status: 'FLAGGED' },
         });
       } else {
         await transaction.comment.updateMany({
-          where: { id: job.targetId, status: { not: 'DELETED' } },
+          where: { id: job.targetId, status: { in: ['PUBLISHED', 'FLAGGED'] } },
           data: { status: 'FLAGGED' },
         });
       }
@@ -104,6 +109,9 @@ export class PrismaModerationJobRepository {
       lockedAt: null,
       lastError: message.slice(0, 2000),
     };
-    await this.database.moderationJob.update({ where: { id: job.id }, data });
+    await this.database.moderationJob.updateMany({
+      where: { id: job.id, status: 'PROCESSING' },
+      data,
+    });
   }
 }

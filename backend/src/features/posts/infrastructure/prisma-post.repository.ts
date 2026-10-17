@@ -1,5 +1,7 @@
-import type { Prisma, PrismaClient } from '../../../generated/prisma/client.js';
+import { recipeDto } from '../../recipes/recipe.dto.js';
+import { Prisma, type PrismaClient } from '../../../generated/prisma/client.js';
 import type { CommentView, CreatePostData, Page, PostRepository, PostView } from '../post.types.js';
+import { visiblePosts, visibleUsers } from '../post-access.js';
 
 const authorSelect = { id: true, name: true, image: true } as const;
 
@@ -31,7 +33,7 @@ export class PrismaPostRepository implements PostRepository {
   ) {
     return this.database.$transaction(async (transaction) => {
       const post = await transaction.post.create({
-        data: { ...data, userId, status },
+        data: { ...data, recipe: data.recipe ?? Prisma.DbNull, userId, status },
       });
 
       if (enqueueModeration) {
@@ -52,17 +54,7 @@ export class PrismaPostRepository implements PostRepository {
   }
 
   async getFeed(userId: string, page: number, limit: number) {
-    const where: Prisma.PostWhereInput = {
-      status: { notIn: ['DELETED', 'BANNED'] },
-      OR: [
-        { visibility: 'PUBLIC' },
-        { userId },
-        {
-          visibility: 'FOLLOWERS',
-          user: { followers: { some: { followerId: userId } } },
-        },
-      ],
-    };
+    const where = visiblePosts(userId, true);
     const [posts, total] = await this.database.$transaction([
       this.database.post.findMany({
         where,
@@ -74,7 +66,79 @@ export class PrismaPostRepository implements PostRepository {
       this.database.post.count({ where }),
     ]);
 
-    return toPage(posts.map(toPostView), page, limit, total);
+    return toPage(await this.withOriginals(this.database, posts, userId), page, limit, total);
+  }
+
+  async getSavedPosts(viewerId: string, page: number, limit: number) {
+    const where = { userId: viewerId, post: visiblePosts(viewerId) };
+    const [saved, total] = await this.database.$transaction([
+      this.database.savedPost.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { postId: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        include: { post: { include: postViewInclude(viewerId) } },
+      }),
+      this.database.savedPost.count({ where }),
+    ]);
+    return toPage(
+      await this.withOriginals(
+        this.database,
+        saved.map((s) => s.post),
+        viewerId,
+      ),
+      page,
+      limit,
+      total,
+    );
+  }
+
+  async searchPosts(viewerId: string, q: string, page: number, limit: number) {
+    const where: Prisma.PostWhereInput = {
+      AND: [
+        visiblePosts(viewerId),
+        {
+          OR: [
+            { title: { contains: q, mode: 'insensitive' } },
+            { content: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+      ],
+    };
+    const [posts, total] = await this.database.$transaction([
+      this.database.post.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        include: postViewInclude(viewerId),
+      }),
+      this.database.post.count({ where }),
+    ]);
+    return toPage(await this.withOriginals(this.database, posts, viewerId), page, limit, total);
+  }
+
+  async getPost(viewerId: string, postId: string) {
+    const post = await this.database.post.findFirst({
+      where: { AND: [visiblePosts(viewerId), { id: postId }] },
+      include: postViewInclude(viewerId),
+    });
+    return post ? (await this.withOriginals(this.database, [post], viewerId))[0]! : null;
+  }
+
+  async getUserPosts(viewerId: string, userId: string, page: number, limit: number) {
+    const where: Prisma.PostWhereInput = { ...visiblePosts(viewerId), userId };
+    const [posts, total] = await this.database.$transaction([
+      this.database.post.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        include: postViewInclude(viewerId),
+      }),
+      this.database.post.count({ where }),
+    ]);
+    return toPage(await this.withOriginals(this.database, posts, viewerId), page, limit, total);
   }
 
   async createComment(
@@ -93,6 +157,28 @@ export class PrismaPostRepository implements PostRepository {
       if (enqueueModeration) {
         await transaction.moderationJob.create({ data: { commentId: comment.id } });
       }
+      if (status === 'PUBLISHED') {
+        const post = await transaction.post.findUniqueOrThrow({
+          where: { id: postId },
+          select: { userId: true },
+        });
+        if (post.userId !== userId) {
+          const actor = await transaction.user.findUniqueOrThrow({
+            where: { id: userId },
+            select: authorSelect,
+          });
+          await transaction.notification.create({
+            data: {
+              userId: post.userId,
+              actorId: userId,
+              type: 'COMMENT',
+              title: 'New comment',
+              message: `${actor.name} commented on your post.`,
+              data: { postId, commentId: comment.id, actor },
+            },
+          });
+        }
+      }
       if (status === 'FLAGGED') {
         await notifyReviewers(
           transaction,
@@ -107,15 +193,25 @@ export class PrismaPostRepository implements PostRepository {
     });
   }
 
-  async getComments(userId: string, postId: string, page: number, limit: number) {
+  async getComments(
+    userId: string,
+    postId: string,
+    page: number,
+    limit: number,
+    sort: 'oldest' | 'newest' = 'oldest',
+  ) {
     const where: Prisma.CommentWhereInput = {
       postId,
+      user: visibleUsers(userId),
       status: { notIn: ['DELETED', 'BANNED'] },
     };
     const [comments, total] = await this.database.$transaction([
       this.database.comment.findMany({
         where,
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        orderBy: [
+          { createdAt: sort === 'newest' ? 'desc' : 'asc' },
+          { id: sort === 'newest' ? 'desc' : 'asc' },
+        ],
         skip: (page - 1) * limit,
         take: limit,
         include: commentViewInclude(userId),
@@ -126,27 +222,60 @@ export class PrismaPostRepository implements PostRepository {
     return toPage(comments.map(toCommentView), page, limit, total);
   }
 
-  async postExists(postId: string) {
+  async postExists(postId: string, viewerId?: string) {
     return (
       (await this.database.post.count({
-        where: { id: postId, status: { notIn: ['DELETED', 'BANNED'] } },
+        where: {
+          AND: [
+            { id: postId },
+            viewerId ? visiblePosts(viewerId) : { status: { notIn: ['DELETED', 'BANNED'] } },
+          ],
+        },
       })) > 0
     );
   }
 
-  async commentBelongsToPost(commentId: string, postId: string) {
+  async commentBelongsToPost(commentId: string, postId: string, viewerId?: string) {
     return (
       (await this.database.comment.count({
-        where: { id: commentId, postId, status: { notIn: ['DELETED', 'BANNED'] } },
+        where: {
+          id: commentId,
+          postId,
+          ...(viewerId ? { user: visibleUsers(viewerId) } : {}),
+          status: { notIn: ['DELETED', 'BANNED'] },
+        },
       })) > 0
     );
   }
 
   async likePost(userId: string, postId: string) {
-    await this.database.like.upsert({
-      where: { userId_postId: { userId, postId } },
-      update: {},
-      create: { userId, postId },
+    await this.database.$transaction(async (transaction) => {
+      const result = await transaction.like.createMany({
+        data: [{ userId, postId }],
+        skipDuplicates: true,
+      });
+      if (result.count) {
+        const post = await transaction.post.findUniqueOrThrow({
+          where: { id: postId },
+          select: { userId: true },
+        });
+        if (post.userId !== userId) {
+          const actor = await transaction.user.findUniqueOrThrow({
+            where: { id: userId },
+            select: authorSelect,
+          });
+          await transaction.notification.create({
+            data: {
+              userId: post.userId,
+              actorId: userId,
+              type: 'LIKE',
+              title: 'New like',
+              message: `${actor.name} liked your post.`,
+              data: { postId, actor },
+            },
+          });
+        }
+      }
     });
   }
 
@@ -184,6 +313,33 @@ export class PrismaPostRepository implements PostRepository {
     return post.sharesCount;
   }
 
+  private async withOriginals(
+    db: PrismaClient | Prisma.TransactionClient,
+    posts: Array<
+      Parameters<typeof toPostView>[0] & { isRepost: boolean; sharedPostId: string | null }
+    >,
+    viewerId: string,
+  ) {
+    const ids = posts.flatMap((post) => (post.sharedPostId ? [post.sharedPostId] : []));
+    const originals = ids.length
+      ? await db.post.findMany({
+          where: {
+            AND: [
+              visiblePosts(viewerId),
+              { id: { in: ids }, status: 'PUBLISHED', user: { status: 'ACTIVE' } },
+            ],
+          },
+          include: postViewInclude(viewerId),
+        })
+      : [];
+    const byId = new Map(originals.map((post) => [post.id, toPostView(post)]));
+    return posts.map((post) => ({
+      ...toPostView(post),
+      isRepost: post.isRepost,
+      sharedPost: post.sharedPostId ? (byId.get(post.sharedPostId) ?? null) : null,
+    }));
+  }
+
   private async findPostView(
     database: Prisma.TransactionClient,
     postId: string,
@@ -194,7 +350,7 @@ export class PrismaPostRepository implements PostRepository {
       include: postViewInclude(currentUserId),
     });
 
-    return toPostView(post);
+    return (await this.withOriginals(database, [post], currentUserId))[0]!;
   }
 
   private async findCommentView(
@@ -214,6 +370,7 @@ export class PrismaPostRepository implements PostRepository {
 function postViewInclude(currentUserId: string) {
   return {
     user: { select: authorSelect },
+    savedBy: { where: { userId: currentUserId }, select: { userId: true } },
     likes: { where: { userId: currentUserId }, select: { id: true } },
     _count: { select: { likes: true, comments: true } },
   } as const;
@@ -233,6 +390,8 @@ function toPostView(post: {
   content: string;
   images: string[];
   sharesCount: number;
+  recipe?: unknown;
+  savedBy?: Array<{ userId: string }>;
   status: PostView['status'];
   visibility: PostView['visibility'];
   createdAt: Date;
@@ -247,6 +406,8 @@ function toPostView(post: {
     content: post.content,
     images: post.images,
     sharesCount: post.sharesCount,
+    recipe: recipeDto.safeParse(post.recipe).data ?? null,
+    savedByCurrentUser: Boolean(post.savedBy?.length),
     status: post.status,
     visibility: post.visibility,
     createdAt: post.createdAt,

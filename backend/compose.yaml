@@ -1,4 +1,10 @@
 services:
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8025:8025'
+
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
@@ -60,11 +66,26 @@ services:
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-false}
+      SMTP_FROM: ${SMTP_FROM:-SocialRecipe <no-reply@socialrecipe.local>}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      PUSH_ENABLED: ${PUSH_ENABLED:-false}
+      EXPO_PUSH_ACCESS_TOKEN: ${EXPO_PUSH_ACCESS_TOKEN:-}
+      GROQ_CHAT_MODEL: ${GROQ_CHAT_MODEL:-openai/gpt-oss-120b}
+      AI_CHAT_LANGUAGE: ${AI_CHAT_LANGUAGE:-english}
       OPENAI_MODERATION_MODEL: ${OPENAI_MODERATION_MODEL:-omni-moderation-latest}
       MODERATION_WORKER_INTERVAL_MS: ${MODERATION_WORKER_INTERVAL_MS:-5000}
       METRICS_TOKEN: ${METRICS_TOKEN:?Set METRICS_TOKEN in the Docker environment file}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
     ports:
-      - '127.0.0.1:4000:4000'
+      - '${API_BIND_ADDRESS:-127.0.0.1}:4000:4000'
     depends_on:
       seed:
         condition: service_completed_successfully

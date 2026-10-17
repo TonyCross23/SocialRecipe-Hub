@@ -1,3 +1,4 @@
+import type { RecipeDetails } from '../recipes/recipe.dto.js';
 import type { PostStatus, PostVisibility } from '../../generated/prisma/enums.js';
 
 export interface ContentAuthor {
@@ -7,6 +8,10 @@ export interface ContentAuthor {
 }
 
 export interface PostView {
+  recipe?: RecipeDetails | null;
+  savedByCurrentUser?: boolean;
+  isRepost?: boolean;
+  sharedPost?: PostView | null;
   id: string;
   title: string;
   content: string;
@@ -47,6 +52,7 @@ export interface Page<T> {
 }
 
 export interface CreatePostData {
+  recipe?: RecipeDetails | null;
   title: string;
   content: string;
   images: string[];
@@ -80,9 +86,10 @@ export interface PostRepository {
     postId: string,
     page: number,
     limit: number,
+    sort?: 'oldest' | 'newest',
   ): Promise<Page<CommentView>>;
-  postExists(postId: string): Promise<boolean>;
-  commentBelongsToPost(commentId: string, postId: string): Promise<boolean>;
+  postExists(postId: string, viewerId?: string): Promise<boolean>;
+  commentBelongsToPost(commentId: string, postId: string, viewerId?: string): Promise<boolean>;
   likePost(userId: string, postId: string): Promise<void>;
   unlikePost(userId: string, postId: string): Promise<void>;
   likeComment(userId: string, commentId: string): Promise<void>;

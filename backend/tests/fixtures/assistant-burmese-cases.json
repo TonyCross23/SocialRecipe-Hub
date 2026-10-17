@@ -1,0 +1,46 @@
+{
+  "purpose": "Manual semantic evaluation of live Burmese AI Cook replies; Myanmar characters alone are not a quality pass.",
+  "cases": [
+    {
+      "id": "unseen_vegetarian_recipe",
+      "question": "တို့ဖူးနဲ့ ခရမ်းချဉ်သီးရှိတယ်။ အသားမပါဘဲ လူ ၂ ယောက်စာ ဘယ်လိုချက်မလဲ? တိုတိုဖြေပေးပါ။",
+      "review": [
+        "Readable Burmese sentences",
+        "Tofu and tomato remain the main ingredients",
+        "No meat added",
+        "Practical quantities and ordered cooking steps",
+        "No invented ingredient names or unrelated words"
+      ]
+    },
+    {
+      "id": "scale_previous_recipe",
+      "question": "အခုဟင်းကို လူ ၄ ယောက်စာ ချက်မယ်ဆိုရင် တို့ဖူးနဲ့ခရမ်းချဉ်သီး ဘယ်လောက်သုံးရမလဲ?",
+      "context": "Use the actual answer from unseen_vegetarian_recipe.",
+      "review": [
+        "Keeps the same dish",
+        "Doubles the previous two-person ingredient quantities",
+        "Short understandable Burmese follow-up",
+        "Does not restart an unrelated recipe"
+      ]
+    },
+    {
+      "id": "egg_substitution",
+      "question": "ကြက်ဥမစားချင်ဘူး။ ထမင်းကြော်မှာ ဘာနဲ့ အစားထိုးသုံးနိုင်မလဲ?",
+      "review": [
+        "Offers an egg-free substitute or omission",
+        "Natural Burmese cooking terms",
+        "Does not insist on adding eggs",
+        "Unknown ingredient names remain in English instead of invented translations"
+      ]
+    },
+    {
+      "id": "nutrition_uncertainty",
+      "question": "တို့ဖူးထမင်းကြော် တစ်ပန်းကန်မှာ ကယ်လိုရီ ဘယ်လောက်ရှိလဲ? အတိအကျမသိရင် ပြောပေးပါ။",
+      "review": [
+        "Labels figures as estimates or asks for quantities",
+        "Does not claim exact nutrition without measurements",
+        "Readable Burmese explanation"
+      ]
+    }
+  ]
+}

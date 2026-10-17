@@ -1,3 +1,4 @@
+import { registrationMailer, registerVerified } from './fixtures/registration.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
@@ -14,7 +15,7 @@ if (databaseUrl && !new URL(databaseUrl).pathname.endsWith('/socialrecipe_test')
 }
 describe.skipIf(!databaseUrl)('PostgreSQL auth integration', () => {
   const db = createDatabase(testConfig.DATABASE_URL);
-  const services = createApplicationServices(db, testConfig);
+  const services = createApplicationServices(db, testConfig, { registrationMailer });
   const app = createApp(services, testConfig, pino({ level: 'silent' }), async () => {
     await db.$queryRaw`SELECT 1`;
   });
@@ -28,7 +29,7 @@ describe.skipIf(!databaseUrl)('PostgreSQL auth integration', () => {
   });
   async function registerAndLogin(label: string) {
     const input = account(label);
-    await request(app).post('/api/v1/auth/register').send(input).expect(201);
+    await registerVerified(app, input);
     return (
       await request(app)
         .post('/api/v1/auth/login')
@@ -41,12 +42,13 @@ describe.skipIf(!databaseUrl)('PostgreSQL auth integration', () => {
   });
   afterAll(async () => {
     await db.user.deleteMany({ where: { email: { startsWith: prefix } } });
+    await db.pendingRegistration.deleteMany({ where: { email: { startsWith: prefix } } });
     await db.$disconnect();
   });
 
   it('registers a member, hashes the password and never returns it', async () => {
     const input = account('registration');
-    const response = await request(app).post('/api/v1/auth/register').send(input).expect(201);
+    const response = await registerVerified(app, input);
     expect(response.body.user.role).toBe('member');
     expect(response.body.user).not.toHaveProperty('password');
     expect(response.body.user).not.toHaveProperty('passwordHash');
@@ -63,11 +65,14 @@ describe.skipIf(!databaseUrl)('PostgreSQL auth integration', () => {
       .expect(400);
   });
 
-  it('handles simultaneous duplicate registrations with one conflict', async () => {
+  it('allows pending requests but creates only one member on verification', async () => {
     const responses = await Promise.all(
       [1, 2].map(() => request(app).post('/api/v1/auth/register').send(account('duplicate'))),
     );
-    expect(responses.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(responses.map((r) => r.status)).toEqual([202, 202]);
+    expect(await db.user.count({ where: { email: account('duplicate').email } })).toBe(0);
+    await registerVerified(app, account('duplicate'));
+    expect(await db.user.count({ where: { email: account('duplicate').email } })).toBe(1);
   });
 
   it('uses the same error for unknown email and wrong password', async () => {

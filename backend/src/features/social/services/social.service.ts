@@ -3,8 +3,8 @@ import type { SocialRepository } from '../social.types.js';
 export class SocialService {
   constructor(private readonly repository: SocialRepository) {}
 
-  userExists(userId: string) {
-    return this.repository.userExists(userId);
+  userExists(userId: string, viewerId?: string) {
+    return this.repository.userExists(userId, viewerId);
   }
 
   follow(followerId: string, followingId: string) {
@@ -15,11 +15,11 @@ export class SocialService {
     return this.repository.unfollow(followerId, followingId);
   }
 
-  getFollowers(userId: string, page: number, limit: number) {
-    return this.repository.getFollowers(userId, page, limit);
+  getFollowers(userId: string, page: number, limit: number, viewerId?: string) {
+    return this.repository.getFollowers(userId, page, limit, viewerId);
   }
 
-  getFollowing(userId: string, page: number, limit: number) {
-    return this.repository.getFollowing(userId, page, limit);
+  getFollowing(userId: string, page: number, limit: number, viewerId?: string) {
+    return this.repository.getFollowing(userId, page, limit, viewerId);
   }
 }

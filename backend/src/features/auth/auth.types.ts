@@ -47,9 +47,19 @@ export interface SessionRecord {
 export type RotationResult = 'rotated' | 'invalid' | 'reused';
 
 export interface AuthRepository {
+  updateProfile(
+    userId: string,
+    input: { name: string; dob: string; image: string | null },
+  ): Promise<PublicUser>;
   createMember(
     input: Omit<RegisterInput, 'password'> & { passwordHash: string },
   ): Promise<PublicUser>;
+  changePassword(
+    userId: string,
+    previousHash: string,
+    nextHash: string,
+    now: Date,
+  ): Promise<boolean>;
   findByEmail(email: string): Promise<AuthenticatedUser | null>;
   getProfile(userId: string): Promise<PublicUser | null>;
   createSession(session: SessionRecord, token: TokenRecord): Promise<void>;

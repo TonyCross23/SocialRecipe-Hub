@@ -15,9 +15,19 @@ export interface PaginatedUsers {
 }
 
 export interface SocialRepository {
-  userExists(userId: string): Promise<boolean>;
+  userExists(userId: string, viewerId?: string): Promise<boolean>;
   follow(followerId: string, followingId: string): Promise<void>;
   unfollow(followerId: string, followingId: string): Promise<void>;
-  getFollowers(userId: string, page: number, limit: number): Promise<PaginatedUsers>;
-  getFollowing(userId: string, page: number, limit: number): Promise<PaginatedUsers>;
+  getFollowers(
+    userId: string,
+    page: number,
+    limit: number,
+    viewerId?: string,
+  ): Promise<PaginatedUsers>;
+  getFollowing(
+    userId: string,
+    page: number,
+    limit: number,
+    viewerId?: string,
+  ): Promise<PaginatedUsers>;
 }

@@ -1,3 +1,4 @@
+import { registrationMailer, registerVerified } from './fixtures/registration.js';
 import { randomUUID } from 'node:crypto';
 import { pino } from 'pino';
 import request from 'supertest';
@@ -14,7 +15,7 @@ if (databaseUrl && !new URL(databaseUrl).pathname.endsWith('/socialrecipe_test')
 
 describe.skipIf(!databaseUrl)('Social, post, and moderation HTTP integration', () => {
   const database = createDatabase(testConfig.DATABASE_URL);
-  const services = createApplicationServices(database, testConfig);
+  const services = createApplicationServices(database, testConfig, { registrationMailer });
   const app = createApp(services, testConfig, pino({ level: 'silent' }), async () => {
     await database.$queryRaw`SELECT 1`;
   });
@@ -28,7 +29,7 @@ describe.skipIf(!databaseUrl)('Social, post, and moderation HTTP integration', (
       password,
       dob: '1995-04-20',
     };
-    await request(app).post('/api/v1/auth/register').send(registration).expect(201);
+    await registerVerified(app, registration);
     return (
       await request(app)
         .post('/api/v1/auth/login')
@@ -49,6 +50,7 @@ describe.skipIf(!databaseUrl)('Social, post, and moderation HTTP integration', (
       data: { value: false },
     });
     await database.user.deleteMany({ where: { email: { startsWith: prefix } } });
+    await database.pendingRegistration.deleteMany({ where: { email: { startsWith: prefix } } });
     await database.$disconnect();
   });
 
