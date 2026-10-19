@@ -1,0 +1,23 @@
+# First boot: serve ACME challenges before a certificate exists.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${API_DOMAIN};
+    server_tokens off;
+
+    location = /_proxy-health {
+        access_log off;
+        return 200 "ok\n";
+    }
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / {
+        add_header Retry-After 60 always;
+        return 503 "HTTPS certificate initialization is pending.\n";
+    }
+}

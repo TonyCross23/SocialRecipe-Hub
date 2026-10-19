@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import type { AuthResponse } from "../lib/types";
 import { useAuthStore } from "../store/auth-store";
 import { Button, Input } from "../components/ui";
+import { ThemeToggle } from "../components/ThemeToggle";
 
 const schema = z.object({ email: z.email(), password: z.string().min(1) });
 type FormValues = z.infer<typeof schema>;
@@ -39,7 +40,7 @@ export function LoginPage() {
     }
   };
   return (
-    <main className="grid min-h-screen bg-stone-50 lg:grid-cols-2">
+    <main className="grid min-h-screen bg-stone-50 dark:bg-stone-950 lg:grid-cols-2">
       <section className="hidden flex-col justify-between overflow-hidden bg-[#123d31] p-12 text-white lg:flex">
         <div className="flex items-center gap-3 text-lg font-bold">
           <span className="grid size-10 place-items-center rounded-xl rounded-bl-sm bg-lime-300 text-emerald-950">
@@ -64,23 +65,26 @@ export function LoginPage() {
           Protected by role-based access control
         </div>
       </section>
-      <section className="grid place-items-center p-6">
+      <section className="relative grid place-items-center px-6 pb-6 pt-20">
+        <div className="absolute right-6 top-5">
+          <ThemeToggle />
+        </div>
         <form
           onSubmit={handleSubmit(submit)}
-          className="w-full max-w-md rounded-3xl border border-stone-200 bg-white p-8 shadow-xl shadow-stone-200/60"
+          className="w-full max-w-md rounded-3xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-8 shadow-xl shadow-stone-200/60 dark:shadow-black/20"
         >
-          <p className="text-xs font-bold tracking-[.18em] text-emerald-700">
+          <p className="text-xs font-bold tracking-[.18em] text-emerald-700 dark:text-emerald-400">
             ADMIN CONSOLE
           </p>
           <h2 className="mt-3 text-3xl font-bold">Welcome back</h2>
-          <p className="mt-2 text-stone-500">
+          <p className="mt-2 text-stone-500 dark:text-stone-400">
             Sign in with your administrator account.
           </p>
           <div className="mt-8 grid gap-5">
             <label className="grid gap-2 text-sm font-semibold">
               Email address
               <Input type="email" autoComplete="email" {...register("email")} />
-              <span className="text-xs text-red-600">
+              <span className="text-xs text-red-600 dark:text-red-400">
                 {errors.email?.message}
               </span>
             </label>
@@ -91,12 +95,12 @@ export function LoginPage() {
                 autoComplete="current-password"
                 {...register("password")}
               />
-              <span className="text-xs text-red-600">
+              <span className="text-xs text-red-600 dark:text-red-400">
                 {errors.password?.message}
               </span>
             </label>
             {errors.root && (
-              <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+              <p className="rounded-xl bg-red-50 dark:bg-red-950 p-3 text-sm text-red-700 dark:text-red-300">
                 {errors.root.message}
               </p>
             )}

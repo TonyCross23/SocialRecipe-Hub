@@ -254,4 +254,60 @@ describe.skipIf(!databaseUrl)('Social, post, and moderation HTTP integration', (
       .expect(200);
     expect(metrics.text).toContain('socialrecipe_http_requests_total');
   });
+
+  it('paginates owned admin notifications and filters unread history after marking read', async () => {
+    const admin = await createAccount('notification-admin');
+    const other = await createAccount('notification-other');
+    const role = await database.role.findUniqueOrThrow({ where: { name: 'admin' } });
+    await database.user.update({ where: { id: admin.user.id }, data: { roleId: role.id } });
+    const ids = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    await database.notification.createMany({
+      data: ids.map((id, index) => ({
+        id,
+        userId: index === 3 ? other.user.id : admin.user.id,
+        type: 'NEW_REPORT',
+        title: `Report ${index}`,
+        message: 'A report needs review.',
+        readAt: index === 1 ? new Date('2026-01-01T00:00:00Z') : null,
+        createdAt: new Date(`2026-01-0${index + 1}T00:00:00Z`),
+      })),
+    });
+    const get = (query: string) =>
+      request(app)
+        .get(`/api/v1/admin/notifications?${query}`)
+        .auth(admin.accessToken, { type: 'bearer' });
+    const first = await get('limit=1&page=1').expect(200);
+    expect(first.body.data.map((item: { id: string }) => item.id)).toEqual([ids[2]]);
+    expect(first.body.pagination).toEqual({ page: 1, limit: 1, total: 3, totalPages: 3 });
+    expect(first.body.unreadCount).toBe(2);
+    const second = await get('limit=1&page=2').expect(200);
+    expect(second.body.data.map((item: { id: string }) => item.id)).toEqual([ids[1]]);
+    const unread = await get('limit=1&page=2&filter=unread').expect(200);
+    expect(unread.body.data.map((item: { id: string }) => item.id)).toEqual([ids[0]]);
+    expect(unread.body.pagination.total).toBe(2);
+    await request(app)
+      .patch(`/api/v1/admin/notifications/${ids[3]}/read`)
+      .auth(admin.accessToken, { type: 'bearer' })
+      .expect(404);
+    await request(app)
+      .patch(`/api/v1/admin/notifications/${ids[2]}/read`)
+      .auth(admin.accessToken, { type: 'bearer' })
+      .expect(200);
+    const remaining = await get('filter=unread').expect(200);
+    expect(remaining.body.data.map((item: { id: string }) => item.id)).toEqual([ids[0]]);
+    expect(remaining.body.unreadCount).toBe(1);
+    await request(app)
+      .patch('/api/v1/admin/notifications/read-all')
+      .auth(admin.accessToken, { type: 'bearer' })
+      .expect(200);
+    const empty = await get('filter=unread').expect(200);
+    expect(empty.body.data).toEqual([]);
+    expect(empty.body.pagination.total).toBe(0);
+    expect(empty.body.unreadCount).toBe(0);
+    expect(
+      (await database.notification.findUniqueOrThrow({ where: { id: ids[3] } })).readAt,
+    ).toBeNull();
+    await get('page=0').expect(400);
+    await get('filter=invalid').expect(400);
+  });
 });

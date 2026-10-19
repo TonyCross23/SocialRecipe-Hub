@@ -62,6 +62,15 @@ export function NotificationsScreen() {
       ]);
     },
   });
+  const remove = useMutation({
+    mutationFn: (id: string) => communityApi.deleteNotification(id),
+    onSettled: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["notifications"] }),
+        client.invalidateQueries({ queryKey: ["notificationSummary"] }),
+      ]);
+    },
+  });
   useLayoutEffect(() => {
     nav.setOptions({
       headerRight: () => (
@@ -98,7 +107,9 @@ export function NotificationsScreen() {
       data={data}
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
-        (query.isError && !query.isFetchNextPageError) || read.isError ? (
+        (query.isError && !query.isFetchNextPageError) ||
+        read.isError ||
+        remove.isError ? (
           <View style={{ padding: 12, gap: 8 }}>
             {query.isError && !query.isFetchNextPageError && (
               <ErrorNotice
@@ -109,6 +120,7 @@ export function NotificationsScreen() {
               />
             )}
             {read.isError && <ErrorNotice error={read.error} />}
+            {remove.isError && <ErrorNotice error={remove.error} />}
           </View>
         ) : null
       }
@@ -133,6 +145,7 @@ export function NotificationsScreen() {
                 `${item.readAt ? "" : "Unread: "}${notificationMessage(item, language)}`,
               )}
               onPress={() => open(item)}
+              disabled={remove.isPending && remove.variables === item.id}
               style={({ pressed }) => ({
                 flex: 1,
                 minWidth: 0,
@@ -217,15 +230,47 @@ export function NotificationsScreen() {
                 </View>
               </View>
             </Pressable>
-            {item.type === "FOLLOW" && actor && (
-              <View style={{ maxWidth: "36%", paddingVertical: 8 }}>
+            <View
+              style={{
+                maxWidth: "36%",
+                paddingVertical: 6,
+                gap: 4,
+                alignItems: "flex-end",
+              }}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("Delete notification")}
+                accessibilityState={{
+                  disabled: remove.isPending,
+                  busy: remove.isPending && remove.variables === item.id,
+                }}
+                disabled={remove.isPending}
+                onPress={() => remove.mutate(item.id)}
+                style={({ pressed }) => ({
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: pressed ? colors.border : "transparent",
+                  opacity: remove.isPending ? 0.5 : 1,
+                })}
+              >
+                {remove.isPending && remove.variables === item.id ? (
+                  <ActivityIndicator color={colors.muted} size="small" />
+                ) : (
+                  <Ionicons name="close" size={20} color={colors.muted} />
+                )}
+              </Pressable>
+              {item.type === "FOLLOW" && actor && (
                 <FollowButton
                   userId={actor.id}
                   followLabel="Follow back"
                   compact
                 />
-              </View>
-            )}
+              )}
+            </View>
           </View>
         );
       }}

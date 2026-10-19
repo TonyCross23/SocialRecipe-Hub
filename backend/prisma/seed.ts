@@ -1,11 +1,23 @@
 import 'dotenv/config';
 import { createDatabase } from '../src/database.js';
 import type { Prisma } from '../src/generated/prisma/client.js';
+import { registerDto } from '../src/features/auth/dto/auth.dto.js';
+import { ArgonPasswordService } from '../src/features/auth/services/password.service.js';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is required');
 }
 
+const adminRequested = Boolean(process.env.SEED_ADMIN_EMAIL || process.env.SEED_ADMIN_PASSWORD);
+const admin = adminRequested
+  ? registerDto.parse({
+      email: process.env.SEED_ADMIN_EMAIL,
+      password: process.env.SEED_ADMIN_PASSWORD,
+      name: process.env.SEED_ADMIN_NAME ?? 'Administrator',
+      dob: process.env.SEED_ADMIN_DOB ?? '2000-01-01',
+    })
+  : undefined;
+const passwordHash = admin ? await new ArgonPasswordService().hash(admin.password) : undefined;
 const db = createDatabase(process.env.DATABASE_URL);
 
 const permissions = {
@@ -119,10 +131,30 @@ try {
     await seedPermissions(tx);
     await seedRoles(tx);
     await seedPolicySettings(tx);
+
+    if (admin && passwordHash) {
+      const role = await tx.role.findUniqueOrThrow({ where: { name: 'admin' } });
+      await tx.user.upsert({
+        where: { email: admin.email },
+        // Re-running the seed must not reset a password or undo an account ban.
+        update: { roleId: role.id },
+        create: {
+          email: admin.email,
+          name: admin.name,
+          dob: new Date(`${admin.dob}T00:00:00.000Z`),
+          passwordHash,
+          emailVerifiedAt: new Date(),
+          roleId: role.id,
+        },
+      });
+    }
   });
 
+  console.info('Default roles, permissions and policy settings are ready.');
   console.info(
-    'Default roles, permissions and policy settings are ready. No admin account was created.',
+    admin
+      ? `Administrator ${admin.email} is ready. Existing passwords and account status are preserved.`
+      : 'No admin account requested. Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD to create one.',
   );
 } finally {
   await db.$disconnect();

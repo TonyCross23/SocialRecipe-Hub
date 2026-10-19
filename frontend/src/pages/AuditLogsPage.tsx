@@ -80,7 +80,7 @@ export function AuditLogsPage() {
                     {titleCase(log.status)}
                   </Badge>
                   {log.lastError && (
-                    <small className="text-red-600">{log.lastError}</small>
+                    <small className="text-red-600 dark:text-red-400">{log.lastError}</small>
                   )}
                 </td>
                 <td>{log.attempts}</td>

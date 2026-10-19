@@ -80,7 +80,7 @@ export function PoliciesPage() {
         <Card className="flex items-center justify-between p-6">
           <div>
             <h3 className="font-bold">AI moderation</h3>
-            <p className="mt-1 text-sm text-stone-500">
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
               Queue new posts and comments for automatic review.
             </p>
           </div>
@@ -92,23 +92,23 @@ export function PoliciesPage() {
         </Card>
         <Card className="p-6">
           <label className="font-bold">Banned keywords</label>
-          <p className="mt-1 text-sm text-stone-500">
+          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
             Comma-separated words trigger an immediate content flag.
           </p>
           <textarea className="field mt-4 min-h-28" {...register("keywords")} />
         </Card>
         <Card className="p-6">
           <label className="font-bold">Community policy</label>
-          <p className="mt-1 text-sm text-stone-500">
+          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
             Human-readable rules sent to the moderation provider.
           </p>
           <textarea className="field mt-4 min-h-44" {...register("policy")} />
           {errors.policy && (
-            <p className="mt-2 text-sm text-red-600">{errors.policy.message}</p>
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.policy.message}</p>
           )}
         </Card>
         {save.error && (
-          <p className="text-sm text-red-600">{save.error.message}</p>
+          <p className="text-sm text-red-600 dark:text-red-400">{save.error.message}</p>
         )}
         <Button
           className="justify-self-end"

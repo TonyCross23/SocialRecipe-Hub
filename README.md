@@ -51,7 +51,9 @@ docker compose --env-file .env.docker ps
 cd ..
 ```
 
-Compose starts PostgreSQL, applies migrations, seeds roles/permissions/policies, and starts the API, admin portal, and Mailpit. Seeding does **not** create a default administrator account.
+Compose starts PostgreSQL, applies migrations, seeds roles/permissions/policies, and starts the API, admin portal, and Mailpit. Seeding can also create an administrator when configured below.
+
+If port `5432` is already occupied, set `POSTGRES_PORT=55432` in `backend/.env.docker`. Docker services still use the internal database port `5432`; local npm commands must use the selected host port in `backend/.env`'s `DATABASE_URL`.
 
 | Service             | Address on the development computer |
 | ------------------- | ----------------------------------- |
@@ -183,7 +185,24 @@ An administrator reviews requests under **Account appeals** in the web portal. A
 
 ## 6. Create and use an administrator account
 
-First register and verify a normal account using the mobile app. Then run the following from `backend/`, replacing the example email with that account's email:
+To create an administrator directly through the seeder, set these values in the ignored `backend/.env.docker` file before starting Docker:
+
+```dotenv
+SEED_ADMIN_EMAIL=YOUR_ADMIN_EMAIL
+SEED_ADMIN_PASSWORD=YOUR_ADMIN_PASSWORD
+SEED_ADMIN_NAME=Administrator
+SEED_ADMIN_DOB=2000-01-01
+```
+
+Use a 12–128 character password. Replace the placeholder birthday with the correct date. Run from `backend/`:
+
+```sh
+docker compose --env-file .env.docker up --build -d
+```
+
+The seeder creates the account with a hashed password and the admin role, ready to sign in without mobile registration or an email code. Repeated runs keep one account, ensure its admin role, and preserve its existing password, profile, and ban status. Leaving both email and password empty seeds only roles, permissions, and policies. For a non-Docker backend, put the same settings in `backend/.env` and run `npm run db:seed` from `backend/`.
+
+Alternatively, register and verify a normal account using the mobile app, then promote it from `backend/`:
 
 ```sh
 docker compose --env-file .env.docker run --rm --no-deps seed \
@@ -279,6 +298,8 @@ PostgreSQL data is stored in the `recipe_data` Docker volume. Removing volumes e
 Stop a foreground Expo session with **Ctrl+C** in its terminal.
 
 ## 9. Checks for developers
+
+GitHub Actions runs backend checks and the frontend build on pull requests and `master`. AWS deployment can run after successful checks once its repository/environment settings are configured. Vercel handles the frontend through its Git integration. Follow [CI/CD setup](backend/README.md#cicd-with-github-actions) for the SSH settings, deployment directory, and production setup.
 
 From the repository root, install backend development dependencies and generate the Prisma client first. Mobile dependencies should already be installed from the mobile setup above.
 

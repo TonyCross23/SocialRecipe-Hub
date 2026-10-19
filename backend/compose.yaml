@@ -13,7 +13,7 @@ services:
       POSTGRES_PASSWORD: recipe_local_only
       POSTGRES_DB: socialrecipe
     ports:
-      - '127.0.0.1:5432:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     volumes:
       - recipe_data:/var/lib/postgresql/data
     healthcheck:
@@ -40,6 +40,10 @@ services:
       target: build
     environment:
       DATABASE_URL: postgresql://recipe:recipe_local_only@postgres:5432/socialrecipe?schema=public
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Administrator}
+      SEED_ADMIN_DOB: ${SEED_ADMIN_DOB:-2000-01-01}
     command: ['npm', 'run', 'db:seed']
     depends_on:
       migrate:

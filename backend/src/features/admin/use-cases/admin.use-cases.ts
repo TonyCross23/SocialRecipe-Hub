@@ -28,8 +28,8 @@ export class AdminUseCases {
     return { status: 'ACTIVE' as const };
   }
 
-  getNotifications(userId: string, limit: number) {
-    return this.admin.getNotifications(userId, limit);
+  getNotifications(userId: string, limit: number, page = 1, filter: 'all' | 'unread' = 'all') {
+    return this.admin.getNotifications(userId, limit, page, filter);
   }
 
   async markNotificationRead(userId: string, notificationId: string) {

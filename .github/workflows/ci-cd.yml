@@ -1,0 +1,130 @@
+name: CI and AWS deployment
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the checked master commit to AWS after CI passes
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://recipe:ci_test_only@127.0.0.1:5432/socialrecipe_test?schema=public
+      TEST_DATABASE_URL: postgresql://recipe:ci_test_only@127.0.0.1:5432/socialrecipe_test?schema=public
+      SEED_ADMIN_EMAIL: ""
+      SEED_ADMIN_PASSWORD: ""
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: recipe
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: socialrecipe_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recipe -d socialrecipe_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Generate Prisma client and prepare the isolated database
+        run: |
+          npm run db:generate
+          npm run db:deploy
+          npm run db:seed
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Unit and PostgreSQL integration tests
+        # Integration suites update shared moderation policies; run files in sequence.
+        run: npm test -- --no-file-parallelism --testTimeout=15000 --hookTimeout=15000
+      - run: npm run build
+      - name: Validate deployment shell scripts
+        run: |
+          bash -n deploy/deploy-release.sh
+          bash -n deploy/github-deploy.sh
+          sh -n deploy/nginx/40-configure-ssl.sh
+          sh -n deploy/certbot/renew.sh
+      - name: Build API and Nginx production images
+        run: |
+          docker build --target runtime -t socialrecipe-api:ci .
+          docker build -t socialrecipe-nginx:ci deploy/nginx
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      # This CI bundle is a build check only; Vercel uses its own real API URL.
+      VERCEL: "1"
+      VITE_API_URL: https://api.example.com/api/v1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  deploy:
+    name: Deploy backend to AWS
+    needs: [backend, frontend]
+    if: >-
+      ${{ github.ref == 'refs/heads/master' &&
+          vars.ENABLE_AWS_DEPLOY == 'true' &&
+          (github.event_name == 'push' ||
+           (github.event_name == 'workflow_dispatch' && inputs.deploy)) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    concurrency:
+      group: production-backend
+      cancel-in-progress: false
+    env:
+      AWS_HOST: ${{ vars.AWS_HOST }}
+      AWS_USER: ${{ vars.AWS_USER }}
+      AWS_SSH_PORT: ${{ vars.AWS_SSH_PORT || '22' }}
+      AWS_DEPLOY_PATH: ${{ vars.AWS_DEPLOY_PATH }}
+      AWS_SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+      AWS_SSH_KNOWN_HOSTS: ${{ secrets.AWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Transfer the checked source and deploy over SSH
+        run: bash backend/deploy/github-deploy.sh

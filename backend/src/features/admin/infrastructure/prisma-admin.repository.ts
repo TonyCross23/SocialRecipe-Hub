@@ -136,16 +136,28 @@ export class PrismaAdminRepository implements AdminRepository {
     return result.count > 0;
   }
 
-  async getNotifications(userId: string, limit: number) {
-    const [data, unreadCount] = await this.database.$transaction([
+  async getNotifications(
+    userId: string,
+    limit: number,
+    page = 1,
+    filter: 'all' | 'unread' = 'all',
+  ) {
+    const where = { userId, ...(filter === 'unread' ? { readAt: null } : {}) };
+    const [data, unreadCount, total] = await this.database.$transaction([
       this.database.notification.findMany({
-        where: { userId },
+        where,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
         take: limit,
       }),
       this.database.notification.count({ where: { userId, readAt: null } }),
+      this.database.notification.count({ where }),
     ]);
-    return { data, unreadCount };
+    return {
+      data,
+      unreadCount,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async markNotificationRead(userId: string, notificationId: string, now: Date) {

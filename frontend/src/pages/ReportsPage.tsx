@@ -122,7 +122,7 @@ export function ReportsPage() {
               onChange={(e) => setReason(e.target.value)}
             />
           </label>
-          <p className="mt-3 text-xs text-stone-500">
+          <p className="mt-3 text-xs text-stone-500 dark:text-stone-400">
             Content action does not ban the author account.
           </p>
           <div className="mt-5 flex justify-end gap-2">

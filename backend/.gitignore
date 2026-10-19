@@ -4,6 +4,7 @@ dist/
 .env.*
 !.env.example
 !.env.docker.example
+!.env.production.example
 coverage/
 src/generated/
 *.log

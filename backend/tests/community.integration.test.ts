@@ -209,4 +209,64 @@ describe.skipIf(!databaseUrl)('member profiles and notifications', () => {
       1,
     );
   });
+  it('deletes only owned notifications, updates unread summaries, and preserves follows', async () => {
+    const owner = await member('delete-owner');
+    const sender = await member('delete-sender');
+    await request(app)
+      .put(`/api/v1/social/users/${owner.id}/follow`)
+      .set(as(sender.token))
+      .expect(200);
+    const readItem = await db.notification.create({
+      data: {
+        userId: owner.id,
+        type: 'LIKE',
+        title: 'Read update',
+        message: 'A previous update.',
+        readAt: new Date(),
+      },
+    });
+    const inbox = await request(app)
+      .get('/api/v1/community/notifications')
+      .set(as(owner.token))
+      .expect(200);
+    const unreadId = inbox.body.data.find((item: { readAt: string | null }) => !item.readAt).id;
+    expect(inbox.body.unreadCount).toBe(1);
+    const path = `/api/v1/community/notifications/${unreadId}`;
+    await request(app).delete(path).expect(401);
+    await request(app)
+      .delete('/api/v1/community/notifications/invalid')
+      .set(as(owner.token))
+      .expect(400);
+    await request(app).delete(path).set(as(sender.token)).expect(404);
+    expect(await db.notification.count({ where: { userId: owner.id } })).toBe(2);
+    await request(app).delete(path).set(as(owner.token)).expect(204);
+    const remaining = await request(app)
+      .get('/api/v1/community/notifications')
+      .set(as(owner.token))
+      .expect(200);
+    expect(remaining.body.data.map((item: { id: string }) => item.id)).toEqual([readItem.id]);
+    expect(remaining.body.pagination.total).toBe(1);
+    expect(remaining.body.unreadCount).toBe(0);
+    const summary = await request(app)
+      .get('/api/v1/community/notifications/unread-count')
+      .set(as(owner.token))
+      .expect(200);
+    expect(summary.body).toEqual({ unreadCount: 0, latestNotification: null });
+    const followers = await request(app)
+      .get(`/api/v1/social/users/${owner.id}/followers`)
+      .set(as(owner.token))
+      .expect(200);
+    expect(followers.body.data.map((user: { id: string }) => user.id)).toContain(sender.id);
+    await request(app)
+      .delete(`/api/v1/community/notifications/${readItem.id}`)
+      .set(as(owner.token))
+      .expect(204);
+    await request(app).delete(path).set(as(owner.token)).expect(404);
+    const empty = await request(app)
+      .get('/api/v1/community/notifications')
+      .set(as(owner.token))
+      .expect(200);
+    expect(empty.body.data).toEqual([]);
+    expect(empty.body.pagination.total).toBe(0);
+  });
 });

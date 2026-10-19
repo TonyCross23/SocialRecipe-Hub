@@ -14,6 +14,8 @@ export const banUserDto = z.strictObject({
 
 export const notificationQueryDto = z.strictObject({
   limit: z.coerce.number().int().min(1).max(50).default(15),
+  page: z.coerce.number().int().min(1).max(1000000).default(1),
+  filter: z.enum(['all', 'unread']).default('all'),
 });
 
 export const notificationParamsDto = z.strictObject({ notificationId: z.uuid() });

@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   Bot,
@@ -9,18 +8,23 @@ import {
   Settings2,
   Users,
 } from "lucide-react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import type { Notification } from "../lib/types";
+import {
+  notificationDestination,
+  useNotificationActions,
+  useNotifications,
+} from "../lib/notifications";
 import { cn } from "../lib/utils";
 import { useAuthStore } from "../store/auth-store";
 import { PermissionGate } from "./ProtectedRoute";
 import { Button } from "./ui";
+import { ThemeToggle } from "./ThemeToggle";
 
 const links = [
   { to: "/dashboard", label: "Overview", icon: Gauge },
+  { to: "/notifications", label: "Notifications", icon: Bell },
   {
     to: "/appeals",
     label: "Account appeals",
@@ -53,27 +57,9 @@ export function AdminLayout() {
   const user = useAuthStore((s) => s.user)!;
   const clear = useAuthStore((s) => s.clear);
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const notifications = useQuery({
-    queryKey: ["notifications"],
-    queryFn: () =>
-      api<{ data: Notification[]; unreadCount: number }>(
-        "/admin/notifications?limit=10",
-      ),
-    refetchInterval: 20_000,
-  });
-  const markRead = useMutation({
-    mutationFn: (id: string) =>
-      api(`/admin/notifications/${id}/read`, { method: "PATCH" }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-  });
-  const markAllRead = useMutation({
-    mutationFn: () => api("/admin/notifications/read-all", { method: "PATCH" }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-  });
+  const notifications = useNotifications(1, "all", 10);
+  const { markRead, markAllRead } = useNotificationActions();
   const logout = async () => {
     try {
       await api("/auth/logout", { method: "POST", body: "{}" });
@@ -83,8 +69,8 @@ export function AdminLayout() {
     }
   };
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 lg:grid lg:grid-cols-[250px_1fr]">
-      <aside className="border-r border-stone-200 bg-[#123d31] p-5 text-white lg:min-h-screen">
+    <div className="min-h-screen bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 lg:grid lg:grid-cols-[250px_1fr]">
+      <aside className="border-r border-stone-200 dark:border-stone-800 bg-[#123d31] p-5 text-white lg:min-h-screen">
         <div className="mb-10 flex items-center gap-3 text-lg font-bold">
           <span className="grid size-9 place-items-center rounded-xl rounded-bl-sm bg-lime-300 text-emerald-950">
             S
@@ -131,70 +117,100 @@ export function AdminLayout() {
         </div>
       </aside>
       <main className="min-w-0">
-        <header className="flex h-20 items-center justify-between border-b border-stone-200 bg-white px-5 lg:px-8">
+        <header className="flex h-20 items-center justify-between border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 px-5 lg:px-8">
           <div>
-            <p className="text-xs font-bold tracking-[.18em] text-emerald-700">
+            <p className="text-xs font-bold tracking-[.18em] text-emerald-700 dark:text-emerald-400">
               COMMUNITY OPERATIONS
             </p>
             <h1 className="text-xl font-bold">Admin workspace</h1>
           </div>
-          <div className="relative">
-            <button
-              aria-label="Notifications"
-              className="relative rounded-xl p-2 hover:bg-stone-100"
-              onClick={() => setNotificationsOpen((open) => !open)}
-            >
-              <Bell size={21} />
-              {Boolean(notifications.data?.unreadCount) && (
-                <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
-                  {notifications.data?.unreadCount}
-                </span>
-              )}
-            </button>
-            {notificationsOpen && (
-              <div className="absolute right-0 top-12 z-40 w-80 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
-                <div className="flex items-center justify-between border-b border-stone-100 p-4">
-                  <strong>Notifications</strong>
-                  <button
-                    className="text-xs font-semibold text-emerald-700"
-                    onClick={() => markAllRead.mutate()}
-                  >
-                    Mark all read
-                  </button>
-                </div>
-                <div className="max-h-96 overflow-y-auto">
-                  {notifications.data?.data.length ? (
-                    notifications.data.data.map((item) => (
-                      <button
-                        key={item.id}
-                        className={cn(
-                          "block w-full border-b border-stone-100 p-4 text-left hover:bg-stone-50",
-                          !item.readAt && "bg-emerald-50",
-                        )}
-                        onClick={() => {
-                          markRead.mutate(item.id);
-                          setNotificationsOpen(false);
-                          navigate(
-                            item.type === "BAN_APPEAL"
-                              ? "/appeals"
-                              : "/reports",
-                          );
-                        }}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <div className="relative">
+              <button
+                aria-label="Notifications"
+                aria-expanded={notificationsOpen}
+                className="relative rounded-xl p-2 hover:bg-stone-100 dark:hover:bg-stone-800"
+                onClick={() => setNotificationsOpen((open) => !open)}
+              >
+                <Bell size={21} />
+                {Boolean(notifications.data?.unreadCount) && (
+                  <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                    {notifications.data?.unreadCount}
+                  </span>
+                )}
+              </button>
+              {notificationsOpen && (
+                <div className="absolute right-0 top-12 z-40 w-80 overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-stone-100 dark:border-stone-800 p-4">
+                    <strong>Notifications</strong>
+                    <button
+                      className="text-xs font-semibold text-emerald-700 dark:text-emerald-400"
+                      disabled={
+                        !notifications.data?.unreadCount ||
+                        markAllRead.isPending
+                      }
+                      onClick={() => markAllRead.mutate()}
+                    >
+                      Mark all read
+                    </button>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifications.isLoading ? (
+                      <p className="p-5 text-sm text-stone-500 dark:text-stone-400">
+                        Loading notifications…
+                      </p>
+                    ) : notifications.error ? (
+                      <p
+                        className="p-5 text-sm text-red-700 dark:text-red-300"
+                        role="alert"
                       >
-                        <strong className="block text-sm">{item.title}</strong>
-                        <span className="mt-1 block text-xs text-stone-500">
-                          {item.message}
-                        </span>
-                      </button>
-                    ))
-                  ) : (
-                    <p className="p-5 text-center text-sm text-stone-500">
-                      You are all caught up.
-                    </p>
-                  )}
+                        Unable to load notifications. Open the notifications
+                        page to retry.
+                      </p>
+                    ) : notifications.data?.data.length ? (
+                      notifications.data.data.map((item) => (
+                        <button
+                          key={item.id}
+                          className={cn(
+                            "block w-full border-b border-stone-100 dark:border-stone-800 p-4 text-left hover:bg-stone-50 dark:hover:bg-stone-950",
+                            !item.readAt && "bg-emerald-50 dark:bg-emerald-950",
+                          )}
+                          onClick={() => {
+                            if (!item.readAt) markRead.mutate(item.id);
+                            setNotificationsOpen(false);
+                            navigate(
+                              notificationDestination(
+                                item.type,
+                                user.permissions,
+                              ) ?? "/notifications",
+                            );
+                          }}
+                        >
+                          <strong className="block text-sm">
+                            {item.title}
+                          </strong>
+                          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
+                            {item.message}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="p-5 text-center text-sm text-stone-500 dark:text-stone-400">
+                        You are all caught up.
+                      </p>
+                    )}
+                  </div>
+                  <Link
+                    to="/notifications"
+                    onClick={() => setNotificationsOpen(false)}
+                    className="block border-t border-stone-200 p-4 text-center text-sm font-semibold text-emerald-700 hover:bg-stone-50 dark:border-stone-800 dark:text-emerald-300 dark:hover:bg-stone-800"
+                  >
+                    View all notifications
+                  </Link>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </header>
         <div className="p-5 lg:p-8">

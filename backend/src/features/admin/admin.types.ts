@@ -75,9 +75,12 @@ export interface AdminRepository {
   getNotifications(
     userId: string,
     limit: number,
+    page: number,
+    filter: 'all' | 'unread',
   ): Promise<{
     data: AdminNotificationView[];
     unreadCount: number;
+    pagination: { page: number; limit: number; total: number; totalPages: number };
   }>;
   markNotificationRead(userId: string, notificationId: string, now: Date): Promise<boolean>;
   markAllNotificationsRead(userId: string, now: Date): Promise<void>;

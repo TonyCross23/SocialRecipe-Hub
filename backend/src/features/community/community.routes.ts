@@ -97,5 +97,10 @@ export function createCommunityRouter(auth: AuthUseCases, community: PrismaCommu
     const { id } = notificationDto.parse(req.params);
     res.json(await community.read(res.locals.actor!.user.id, id));
   });
+  router.delete('/notifications/:id', async (req, res) => {
+    const { id } = notificationDto.parse(req.params);
+    await community.deleteNotification(res.locals.actor!.user.id, id);
+    res.status(204).end();
+  });
   return router;
 }

@@ -66,12 +66,12 @@ export function MonitoringPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(({ label, value, note, icon: Icon }) => (
           <Card className="p-5" key={label}>
-            <div className="flex justify-between text-sm text-stone-500">
+            <div className="flex justify-between text-sm text-stone-500 dark:text-stone-400">
               {label}
               <Icon size={18} />
             </div>
             <p className="mt-4 text-2xl font-bold capitalize">{value}</p>
-            <p className="mt-1 text-sm text-stone-500">{note}</p>
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{note}</p>
           </Card>
         ))}
       </div>
@@ -94,7 +94,7 @@ export function MonitoringPage() {
                   }}
                   title={`${point.requests} requests`}
                 />
-                <small className="truncate text-center text-[10px] text-stone-400">
+                <small className="truncate text-center text-[10px] text-stone-400 dark:text-stone-500">
                   {new Date(point.timestamp).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -108,18 +108,18 @@ export function MonitoringPage() {
           <h3 className="font-bold">Runtime health</h3>
           <dl className="mt-5 grid gap-5 text-sm">
             <div>
-              <dt className="text-stone-500">Resident memory</dt>
+              <dt className="text-stone-500 dark:text-stone-400">Resident memory</dt>
               <dd className="font-bold">{bytes(d.memory.rssBytes)}</dd>
             </div>
             <div>
-              <dt className="text-stone-500">Heap usage</dt>
+              <dt className="text-stone-500 dark:text-stone-400">Heap usage</dt>
               <dd className="font-bold">
                 {bytes(d.memory.heapUsedBytes)} /{" "}
                 {bytes(d.memory.heapTotalBytes)}
               </dd>
             </div>
             <div>
-              <dt className="text-stone-500">Active requests</dt>
+              <dt className="text-stone-500 dark:text-stone-400">Active requests</dt>
               <dd className="font-bold">{d.activeRequests}</dd>
             </div>
           </dl>

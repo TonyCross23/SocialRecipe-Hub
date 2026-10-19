@@ -18,6 +18,7 @@ export function NotificationBanner({ onOpen }: { onOpen: () => void }) {
   const [item, setItem] = useState<AppNotification | null>(null);
   useEffect(() => {
     if (!query.data) return;
+    if (item && query.data.latestNotification?.id !== item.id) setItem(null);
     const next = query.data.latestNotification
       ? Date.parse(query.data.latestNotification.createdAt)
       : 0;
@@ -26,7 +27,7 @@ export function NotificationBanner({ onOpen }: { onOpen: () => void }) {
       void client.invalidateQueries({ queryKey: ["notifications"] });
     }
     last.current = Math.max(last.current ?? 0, next);
-  }, [query.data, client]);
+  }, [query.data, client, item]);
   useEffect(() => {
     if (!item) return;
     const timer = setTimeout(() => setItem(null), 6000);

@@ -141,4 +141,8 @@ export const communityApi = {
       `/community/notifications/${id ? `${encodeURIComponent(id)}/read` : "read-all"}`,
       { method: "PATCH" },
     ),
+  deleteNotification: (id: string) =>
+    api<void>(`/community/notifications/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
 };

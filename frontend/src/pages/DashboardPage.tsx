@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { FileWarning, MessageCircle, Newspaper, Users } from "lucide-react";
 import { Card } from "../components/ui";
+import { StatusChart } from "../components/StatusChart";
 import { api } from "../lib/api";
-import { formatNumber, titleCase } from "../lib/utils";
+import { formatNumber } from "../lib/utils";
 
 type Dashboard = {
   totals: Record<
@@ -18,6 +19,7 @@ export function DashboardPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => api<Dashboard>("/admin/dashboard"),
+    refetchInterval: 30_000,
   });
   if (isLoading) return <Loading />;
   if (!data || error) return <ErrorBox message={error?.message} />;
@@ -56,50 +58,47 @@ export function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(({ label, value, note, icon: Icon }) => (
           <Card key={label} className="p-5">
-            <div className="flex items-center justify-between text-sm font-semibold text-stone-500">
+            <div className="flex items-center justify-between text-sm font-semibold text-stone-500 dark:text-stone-400">
               {label}
-              <Icon size={19} className="text-emerald-700" />
+              <Icon
+                size={19}
+                className="text-emerald-700 dark:text-emerald-400"
+              />
             </div>
             <p className="mt-5 text-3xl font-bold">{formatNumber(value)}</p>
-            <p className="mt-1 text-sm text-stone-500">{note}</p>
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+              {note}
+            </p>
           </Card>
         ))}
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <Breakdown title="Content status" rows={data.postsByStatus} />
-        <Breakdown title="Report workflow" rows={data.reportsByStatus} />
+        <StatusChart
+          title="Content status"
+          description="Posts grouped by their current status."
+          unit="posts"
+          rows={data.postsByStatus}
+          categories={[
+            { status: "PUBLISHED", color: "#10b981" },
+            { status: "FLAGGED", color: "#f59e0b" },
+            { status: "BANNED", color: "#f87171" },
+            { status: "DELETED", color: "#94a3b8" },
+          ]}
+        />
+        <StatusChart
+          title="Report workflow"
+          description="How community reports have been handled."
+          unit="reports"
+          rows={data.reportsByStatus}
+          categories={[
+            { status: "PENDING", color: "#f59e0b" },
+            { status: "REVIEWED", color: "#60a5fa" },
+            { status: "DISMISSED", color: "#a78bfa" },
+            { status: "ACTIONED", color: "#10b981" },
+          ]}
+        />
       </div>
     </>
-  );
-}
-function Breakdown({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: { status: string; count: number }[];
-}) {
-  const max = Math.max(1, ...rows.map((r) => r.count));
-  return (
-    <Card className="p-6">
-      <h2 className="font-bold">{title}</h2>
-      <div className="mt-5 grid gap-4">
-        {rows.map((row) => (
-          <div key={row.status}>
-            <div className="mb-1 flex justify-between text-sm">
-              <span>{titleCase(row.status)}</span>
-              <strong>{row.count}</strong>
-            </div>
-            <div className="h-2 rounded-full bg-stone-100">
-              <div
-                className="h-full rounded-full bg-emerald-600"
-                style={{ width: `${Math.max(4, (row.count / max) * 100)}%` }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
   );
 }
 export const PageTitle = ({
@@ -111,18 +110,23 @@ export const PageTitle = ({
 }) => (
   <div className="mb-6">
     <h2 className="text-2xl font-bold">{title}</h2>
-    <p className="mt-1 text-sm text-stone-500">{description}</p>
+    <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+      {description}
+    </p>
   </div>
 );
 export const Loading = () => (
   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     {Array.from({ length: 4 }, (_, i) => (
-      <div key={i} className="h-36 animate-pulse rounded-2xl bg-stone-200" />
+      <div
+        key={i}
+        className="h-36 animate-pulse rounded-2xl bg-stone-200 dark:bg-stone-800"
+      />
     ))}
   </div>
 );
 export const ErrorBox = ({ message }: { message?: string }) => (
-  <Card className="p-6 text-red-700">
+  <Card className="p-6 text-red-700 dark:text-red-300">
     {message ?? "Unable to load this page."}
   </Card>
 );

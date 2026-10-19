@@ -19,8 +19,8 @@ export class AdminService {
     return this.repository.unbanUser(userId);
   }
 
-  getNotifications(userId: string, limit: number) {
-    return this.repository.getNotifications(userId, limit);
+  getNotifications(userId: string, limit: number, page = 1, filter: 'all' | 'unread' = 'all') {
+    return this.repository.getNotifications(userId, limit, page, filter);
   }
 
   markNotificationRead(userId: string, notificationId: string, now: Date) {

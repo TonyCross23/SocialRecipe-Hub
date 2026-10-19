@@ -76,7 +76,7 @@ export function UsersPage() {
                 <td>{formatDate(user.createdAt)}</td>
                 <td>
                   {user.id === currentId ? (
-                    <span className="text-xs text-stone-400">
+                    <span className="text-xs text-stone-400 dark:text-stone-500">
                       Current account
                     </span>
                   ) : user.status === "BANNED" ? (
@@ -102,7 +102,7 @@ export function UsersPage() {
         onOpenChange={(open) => !open && setTarget(null)}
       >
         <DialogContent title={`Ban ${target?.name ?? "user"}`}>
-          <p className="mb-4 text-sm text-stone-500">
+          <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">
             This revokes active sessions and blocks login. Their posts are
             managed separately.
           </p>

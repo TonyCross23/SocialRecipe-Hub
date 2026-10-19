@@ -9,6 +9,7 @@ import { ReportsPage } from "./pages/ReportsPage";
 import { PoliciesPage } from "./pages/PoliciesPage";
 import { MonitoringPage } from "./pages/MonitoringPage";
 import { AuditLogsPage } from "./pages/AuditLogsPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route element={<AdminLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route
             path="/appeals"
             element={

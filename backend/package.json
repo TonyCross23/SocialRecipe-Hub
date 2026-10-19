@@ -22,7 +22,11 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "admin:promote": "tsx prisma/promote-admin.ts",
-    "docker:env": "node scripts/create-docker-env.mjs"
+    "docker:env": "node scripts/create-docker-env.mjs",
+    "production:env": "node scripts/create-production-env.mjs",
+    "production:up": "docker compose --env-file .env.production -f compose.production.yaml up --build -d",
+    "production:ssl": "node scripts/init-production-ssl.mjs",
+    "production:status": "docker compose --env-file .env.production -f compose.production.yaml ps --all"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^9.1.0",

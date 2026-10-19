@@ -299,6 +299,10 @@ export class PrismaCommunityRepository {
     ]);
     return { unreadCount, latestNotification };
   }
+  async deleteNotification(userId: string, id: string) {
+    const result = await this.db.notification.deleteMany({ where: { id, userId } });
+    if (!result.count) throw notFound('Notification');
+  }
   async read(userId: string, id?: string) {
     if (id) {
       const result = await this.db.notification.updateMany({

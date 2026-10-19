@@ -1,0 +1,151 @@
+name: socialrecipe-production
+
+x-database-url: &database-url postgresql://recipe:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in .env.production}@postgres:5432/socialrecipe?schema=public
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: recipe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: socialrecipe
+    volumes:
+      - recipe_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U recipe -d socialrecipe']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [database]
+
+  migrate:
+    build:
+      context: .
+      target: build
+    environment:
+      DATABASE_URL: *database-url
+    command: ['npm', 'run', 'db:deploy']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    networks: [database]
+
+  seed:
+    build:
+      context: .
+      target: build
+    environment:
+      DATABASE_URL: *database-url
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Administrator}
+      SEED_ADMIN_DOB: ${SEED_ADMIN_DOB:-2000-01-01}
+    command: ['npm', 'run', 'db:seed']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: 'no'
+    networks: [database]
+
+  api:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: *database-url
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Generate JWT_ACCESS_SECRET in .env.production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Generate JWT_REFRESH_SECRET in .env.production}
+      JWT_ISSUER: ${JWT_ISSUER:-socialrecipe-api}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-socialrecipe-clients}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-604800}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-2592000}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set your exact Vercel frontend origin in .env.production}
+      # The API is reachable only through Nginx, one proxy hop away.
+      TRUST_PROXY_HOPS: 1
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      METRICS_TOKEN: ${METRICS_TOKEN:?Generate METRICS_TOKEN in .env.production}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_CHAT_MODEL: ${GROQ_CHAT_MODEL:-openai/gpt-oss-120b}
+      AI_CHAT_LANGUAGE: ${AI_CHAT_LANGUAGE:-english}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODERATION_MODEL: ${OPENAI_MODERATION_MODEL:-omni-moderation-latest}
+      MODERATION_WORKER_INTERVAL_MS: ${MODERATION_WORKER_INTERVAL_MS:-5000}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      PUSH_ENABLED: ${PUSH_ENABLED:-false}
+      EXPO_PUSH_ACCESS_TOKEN: ${EXPO_PUSH_ACCESS_TOKEN:-}
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health/ready').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks: [database, proxy]
+
+  nginx:
+    build:
+      context: ./deploy/nginx
+    restart: unless-stopped
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Set the backend hostname in .env.production}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - acme_webroot:/var/www/certbot
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [proxy]
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1/_proxy-health']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    entrypoint: ['/bin/sh', '/opt/certbot/renew.sh']
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - acme_webroot:/var/www/certbot
+      - ./deploy/certbot/renew.sh:/opt/certbot/renew.sh:ro
+    depends_on:
+      nginx:
+        condition: service_healthy
+    networks: [proxy]
+
+networks:
+  database:
+    internal: true
+  proxy:
+
+volumes:
+  recipe_data:
+  letsencrypt:
+  acme_webroot:

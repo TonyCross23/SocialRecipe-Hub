@@ -4,7 +4,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   Text,
   View,
@@ -19,7 +18,6 @@ export function ChangePasswordScreen() {
   const [current, setCurrent] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [show, setShow] = useState(false);
   const mutation = useMutation({
     mutationFn: async () => {
       if (!current) throw new Error("Enter your current password.");
@@ -39,7 +37,7 @@ export function ChangePasswordScreen() {
     },
   });
   const props = {
-    secureTextEntry: !show,
+    secureTextEntry: true,
     autoCapitalize: "none" as const,
     autoCorrect: false,
     maxLength: 128,
@@ -83,16 +81,6 @@ export function ChangePasswordScreen() {
             {...props}
           />
         </View>
-        <Pressable
-          accessibilityRole="button"
-          disabled={mutation.isPending}
-          onPress={() => setShow((v) => !v)}
-          style={{ alignSelf: "flex-start", paddingVertical: 8 }}
-        >
-          <Text style={styles.muted}>
-            {show ? t("Hide passwords") : t("Show passwords")}
-          </Text>
-        </Pressable>
         {mutation.isError && <ErrorNotice error={mutation.error} />}
         <Button
           title={t("Update password")}

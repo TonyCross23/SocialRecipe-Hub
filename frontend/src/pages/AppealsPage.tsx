@@ -167,13 +167,13 @@ export function AppealsPage() {
         }}
       >
         <DialogContent title="Review account appeal">
-          <DialogPrimitive.Description className="text-sm text-stone-500">
+          <DialogPrimitive.Description className="text-sm text-stone-500 dark:text-stone-400">
             {target?.user.name} · {target?.user.email}
           </DialogPrimitive.Description>
           {target && (
             <div className="grid gap-4">
               <div>
-                <p className="text-xs font-semibold text-stone-500">
+                <p className="text-xs font-semibold text-stone-500 dark:text-stone-400">
                   BAN REASON
                 </p>
                 <p className="whitespace-pre-wrap">
@@ -181,7 +181,7 @@ export function AppealsPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs font-semibold text-stone-500">
+                <p className="text-xs font-semibold text-stone-500 dark:text-stone-400">
                   MEMBER MESSAGE
                 </p>
                 <p className="whitespace-pre-wrap break-words">
@@ -191,7 +191,7 @@ export function AppealsPage() {
               <label className="grid gap-2 text-sm font-medium">
                 Response to member
                 <textarea
-                  className="min-h-28 rounded-xl border border-stone-300 p-3"
+                  className="min-h-28 rounded-xl border border-stone-300 dark:border-stone-700 p-3"
                   value={response}
                   maxLength={1000}
                   disabled={review.isPending || target.status !== "PENDING"}
@@ -216,14 +216,14 @@ export function AppealsPage() {
                   </Button>
                 </div>
               ) : (
-                <p className="text-sm text-stone-500">
+                <p className="text-sm text-stone-500 dark:text-stone-400">
                   {target.status}
                   {target.reviewer
                     ? ` · Reviewed by ${target.reviewer.name}`
                     : ""}
                 </p>
               )}
-              <p className="text-xs text-stone-500">
+              <p className="text-xs text-stone-500 dark:text-stone-400">
                 If the ban has changed since submission, this appeal is marked
                 stale instead of unbanning a newer restriction.
               </p>

@@ -39,8 +39,10 @@ export class AdminController {
   };
 
   notifications = async (request: Request, response: Response) => {
-    const { limit } = notificationQueryDto.parse(request.query);
-    response.json(await this.admin.getNotifications(response.locals.actor!.user.id, limit));
+    const { limit, page, filter } = notificationQueryDto.parse(request.query);
+    response.json(
+      await this.admin.getNotifications(response.locals.actor!.user.id, limit, page, filter),
+    );
   };
 
   readNotification = async (request: Request, response: Response) => {

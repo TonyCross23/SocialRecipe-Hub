@@ -1,5 +1,6 @@
 import { useLanguage, t } from "../store/language";
 import type { ComponentProps, ReactNode } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -171,21 +172,59 @@ export function IconButton({
     </Pressable>
   );
 }
-export function Field({ label, ...props }: TextInputProps & { label: string }) {
+export function Field({
+  label,
+  secureTextEntry,
+  ...props
+}: TextInputProps & { label: string }) {
   const { styles, colors } = useUI();
+  const [showPassword, setShowPassword] = useState(false);
   return (
     <View style={{ gap: 6 }}>
       <Text style={[styles.muted, { fontWeight: "600" }]}>{t(label)}</Text>
-      <TextInput
-        accessibilityLabel={t(label)}
-        placeholderTextColor={colors.muted}
-        {...props}
-        style={[
-          styles.input,
-          props.multiline && { minHeight: 140, textAlignVertical: "top" },
-          props.style,
-        ]}
-      />
+      <View style={{ position: "relative" }}>
+        <TextInput
+          accessibilityLabel={t(label)}
+          placeholderTextColor={colors.muted}
+          {...props}
+          secureTextEntry={secureTextEntry && !showPassword}
+          autoCorrect={secureTextEntry ? false : props.autoCorrect}
+          style={[
+            styles.input,
+            props.multiline && { minHeight: 140, textAlignVertical: "top" },
+            props.style,
+            secureTextEntry && { paddingRight: 58 },
+          ]}
+        />
+        {secureTextEntry && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t(showPassword ? "Hide password" : "Show password")}: ${t(label)}`}
+            accessibilityState={{ disabled: props.editable === false }}
+            disabled={props.editable === false}
+            onPress={() => setShowPassword((visible) => !visible)}
+            style={({ pressed }) => ({
+              position: "absolute",
+              right: 4,
+              top: 2,
+              bottom: 2,
+              width: 44,
+              minHeight: 44,
+              borderRadius: 8,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: pressed ? colors.pale : "transparent",
+              opacity: props.editable === false ? 0.5 : 1,
+            })}
+          >
+            <Ionicons
+              name={showPassword ? "eye-off-outline" : "eye-outline"}
+              color={colors.muted}
+              size={22}
+            />
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }

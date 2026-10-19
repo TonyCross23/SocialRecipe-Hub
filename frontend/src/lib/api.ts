@@ -1,7 +1,7 @@
 import { useAuthStore } from '../store/auth-store';
 import type { AuthResponse } from './types';
 
-const API = '/api/v1';
+const API = (import.meta.env.VITE_API_URL?.trim() || '/api/v1').replace(/\/+$/, '');
 let refreshing: Promise<boolean> | null = null;
 
 async function rotateToken() {

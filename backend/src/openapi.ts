@@ -574,6 +574,18 @@ export const openApiDocument = {
     '/api/v1/community/notifications/read-all': {
       patch: protectedOperation('Community', 'Mark the current member’s notifications read'),
     },
+    '/api/v1/community/notifications/{id}': {
+      delete: {
+        ...protectedOperation('Community', 'Delete one owned notification'),
+        parameters: [uuidPath('id')],
+        responses: {
+          '204': { description: 'Notification deleted' },
+          '400': { description: 'Invalid notification ID' },
+          '401': { description: 'Unauthorized' },
+          '404': { description: 'Notification not found' },
+        },
+      },
+    },
     '/api/v1/community/notifications/{id}/read': {
       patch: {
         ...protectedOperation('Community', 'Mark one owned notification read'),
@@ -1020,7 +1032,21 @@ export const openApiDocument = {
       get: {
         ...protectedOperation('Administration', 'List administrator notifications'),
         parameters: [
-          { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } },
+          {
+            name: 'limit',
+            in: 'query',
+            schema: { type: 'integer', minimum: 1, maximum: 50, default: 15 },
+          },
+          {
+            name: 'page',
+            in: 'query',
+            schema: { type: 'integer', minimum: 1, maximum: 1000000, default: 1 },
+          },
+          {
+            name: 'filter',
+            in: 'query',
+            schema: { type: 'string', enum: ['all', 'unread'], default: 'all' },
+          },
         ],
       },
     },

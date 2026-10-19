@@ -109,7 +109,15 @@ The normal `down` command preserves PostgreSQL data. Add `--volumes` only when y
 
 ### Create an administrator
 
-Register a normal account first, then promote it using its email:
+To create an administrator with the seeder, configure `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in the ignored `.env.docker` file (or `.env` for local npm commands). The password must be 12–128 characters. Optionally set `SEED_ADMIN_NAME` and `SEED_ADMIN_DOB`; their defaults are `Administrator` and the placeholder birthday `2000-01-01`.
+
+```sh
+docker compose --env-file .env.docker up --build -d
+```
+
+This creates an administrator ready to log in without registration. Repeated seeds ensure the admin role but preserve an existing account's password, profile, and ban status. With both credentials empty, only roles, permissions and policies are seeded. Locally, use `npm run db:seed` after migrations.
+
+Alternatively, register a normal account first, then promote it using its email:
 
 ```sh
 docker compose --env-file .env.docker run --rm seed \
@@ -117,6 +125,96 @@ docker compose --env-file .env.docker run --rm seed \
 ```
 
 Log in at [http://localhost:3000](http://localhost:3000). No default admin password is created or stored in the repository.
+
+## AWS deployment with HTTPS
+
+Use `compose.production.yaml` for an EC2 or Lightsail Linux instance with Docker Engine and Compose v2. This stack runs PostgreSQL, migrations, the administrator seeder, the API, Nginx, and Certbot. The frontend is deployed separately on Vercel. Only Nginx publishes host ports 80/443; PostgreSQL and port 4000 stay inside Docker networks. Production has its own database volume, separate from the local development stack.
+
+Attach a static public IP (Lightsail) or Elastic IP (EC2), and point the backend domain's DNS A record at it. Configure an AAAA record only if the instance is also reachable over IPv6. Allow inbound TCP 80/443 and restrict SSH to your administration IP. Ports 80/443 must be available on the instance. If another application already owns them, integrate with that reverse proxy before starting this stack. See [AWS static IP instructions](https://docs.aws.amazon.com/lightsail/latest/userguide/lightsail-create-static-ip.html).
+
+Generate the production environment on the development computer, replacing both example domains:
+
+```sh
+cd backend
+npm run production:env -- --source .env.docker \
+  --domain api.example.com \
+  --email YOUR_EMAIL@example.com \
+  --frontend-origin https://YOUR_PROJECT.vercel.app
+```
+
+This writes the ignored `.env.production` with permissions `600`, new database/JWT/metrics secrets, and the existing configured SMTP, Cloudinary, Groq and administrator seed settings. The `--source` option explicitly imports service settings on first creation; later runs preserve existing production values. Keep this file for subsequent deployments. To add a custom frontend domain, pass another `--frontend-origin https://admin.example.com`. Origins are exact URLs, without paths or wildcards.
+
+Transfer the backend source and `.env.production` to the instance over SSH. Exclude `node_modules`, `dist`, `src/generated`, test output, and local `.env`/`.env.docker` files. Keep `.env.production` private on the server. From the deployed backend directory run:
+
+```sh
+docker compose --env-file .env.production -f compose.production.yaml up --build -d
+npm run production:ssl
+docker compose --env-file .env.production -f compose.production.yaml ps --all
+docker compose --env-file .env.production -f compose.production.yaml logs --tail=100 nginx certbot api seed
+curl --fail https://api.example.com/health/ready
+```
+
+The dependency chain runs migrations and seeding before the API. On first startup Nginx serves HTTP ACME challenges and returns 503 for API requests until the certificate is ready. `production:ssl` runs Certbot's webroot verification for `API_DOMAIN`, using `LETSENCRYPT_EMAIL` (or `npm run production:ssl -- --email YOUR_EMAIL@example.com`). This command registers the Let's Encrypt account and accepts its subscriber terms with `--agree-tos`. DNS must point at the instance and TCP 80/443 must be reachable before requesting the certificate.
+
+Once the certificate is issued, Nginx enables TLS 1.2/1.3 on port 443 and redirects HTTP requests to HTTPS. The Certbot service checks for renewal every 12 hours. Successful issuance or renewal writes a shared marker, which Nginx checks every five seconds before testing and reloading its configuration. Both services work without access to the Docker socket. Certificates and ACME account data persist in the `letsencrypt` volume. See [Nginx HTTPS configuration](https://nginx.org/en/docs/http/configuring_https_servers.html) and [Certbot webroot/renewal documentation](https://eff-certbot.readthedocs.io/en/stable/using.html).
+
+To verify renewal against the Let's Encrypt staging service after initial issuance:
+
+```sh
+docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps \
+  --entrypoint certbot certbot renew --dry-run
+```
+
+In Vercel, use the repository's `frontend` directory as the project root and set `VITE_API_URL=https://api.example.com/api/v1`. Follow [frontend deployment instructions](../frontend/README.md#deploy-on-vercel). Set the matching frontend origin in `.env.production`'s `CORS_ORIGINS` and recreate the API after changes. A production frontend deployment needs its own allowed origin; preview deployment URLs must be added explicitly when used.
+
+After code changes, repeat the production `up --build -d` command. Keep database and certificate volumes across deploys. Before migrations or server replacement, back up PostgreSQL to storage outside the instance:
+
+```sh
+docker compose --env-file .env.production -f compose.production.yaml exec -T postgres \
+  pg_dump -U recipe -d socialrecipe > /YOUR_BACKUP_DIRECTORY/socialrecipe.sql
+```
+
+The local mobile app can continue using its current development API until its release setup is requested.
+
+## CI/CD with GitHub Actions
+
+The repository uses `master`. `.github/workflows/ci-cd.yml` runs **Backend checks** and **Frontend build** for pull requests to `master`, pushes to `master`, and manual runs. Backend checks include linting, TypeScript, all unit/integration tests against an isolated PostgreSQL 17 service, and production Docker builds. Integration files run sequentially because they update shared moderation settings. The frontend job builds with a placeholder HTTPS API URL; Vercel creates the deployed frontend with its real environment values.
+
+After both jobs pass on `master`, AWS deployment can transfer that exact commit's backend source over SSH, build the production stack on the server, back up PostgreSQL before migrations, run migrations/seeding, and verify public HTTPS readiness. Source archives exclude environment files, dependencies, and generated output. Runtime credentials remain on the server. SSH uses a pinned server host key.
+
+### One-time AWS setup
+
+Complete the manual AWS/HTTPS setup above first, including the initial certificate. The deployment user needs Docker/Compose, Bash, `curl`, `tar`, `gzip`, `sha256sum`, and `flock`, plus permission to run Docker. Configure SSH reachability from your GitHub runner's network. The workflow uses GitHub-hosted Ubuntu runners; if your server requires a fixed/private administration network, use a runner with access to that network and update the deploy job's `runs-on` accordingly.
+
+Choose an application directory writable by the deployment user, for example `/opt/socialrecipe`. Place the existing production environment at `/opt/socialrecipe/shared/.env.production`, owned by that user with permissions `600`. Keep the same production secrets and Compose project name (`socialrecipe-production`) so the database and certificate volumes are reused. CI/CD does not generate or replace these secrets.
+
+In **GitHub → Settings → Environments**, create `production`. Add these environment variables:
+
+- `AWS_HOST`: public IPv4 address or DNS hostname of the instance.
+- `AWS_USER`: SSH login, such as `ubuntu` or `ec2-user`.
+- `AWS_DEPLOY_PATH`: the absolute application directory, such as `/opt/socialrecipe`.
+- `AWS_SSH_PORT`: optional; defaults to `22`.
+
+Add these environment secrets (repository secrets are also supported):
+
+- `AWS_SSH_PRIVATE_KEY`: a dedicated CI deployment SSH private key. Install its matching public key in the deployment user's `~/.ssh/authorized_keys` on AWS.
+- `AWS_SSH_KNOWN_HOSTS`: the server's verified SSH host-key entry in `known_hosts` format. For a custom port, use the `[hostname]:port` form. Obtain/verify this server identity through a trusted SSH connection or the AWS console.
+
+Finally add the **repository variable** `ENABLE_AWS_DEPLOY=true` under **Settings → Secrets and variables → Actions → Variables**. Until it is set, CI runs and the AWS deployment job stays skipped. Use `production` environment branch restrictions to allow `master`. See [GitHub environment configuration](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments).
+
+Push the deployment files and application changes to `master`, or use **Actions → CI and AWS deployment → Run workflow** on `master` and enable the deployment checkbox. Pull requests never receive deployment credentials or run AWS deployment.
+
+### Releases and recovery
+
+Each deployment keeps source under `releases/<commit>-<run>-<attempt>` and a pre-migration SQL dump under `shared/backups`. The `current` symlink records the last release that passed HTTPS readiness. Deployments are serialized both in GitHub and on the server. Copy backups to storage outside the instance and manage release/backup retention for your available disk space.
+
+A failed rollout stops the workflow. Containers may already have changed even if the `current` link still points at the previous verified release. Inspect the server logs before retrying. For recovery, choose a retained release and explicitly rebuild/redeploy its Compose stack after checking migration compatibility. Database migrations and backup restores are operator-controlled; they are not automatically reversed.
+
+### Frontend deployment
+
+Connect `TonyCross23/SocialRecipe-Hub` to Vercel, set its root directory to `frontend`, production branch to `master`, and configure the real `VITE_API_URL` as described in the [frontend guide](../frontend/README.md#deploy-on-vercel). Vercel's Git integration handles preview and production deployments independently of the AWS job. No Vercel token is needed in GitHub Actions. See [Vercel Git deployments](https://vercel.com/docs/git).
+
+Require **Backend checks** and **Frontend build** on pull requests before merging to `master` to keep production-branch changes checked. Mobile deployment remains a separate future step.
 
 ## Run locally
 
