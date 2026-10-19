@@ -299,7 +299,7 @@ Stop a foreground Expo session with **Ctrl+C** in its terminal.
 
 ## 9. Checks for developers
 
-GitHub Actions runs backend checks and the frontend build on pull requests and `master`. AWS deployment can run after successful checks once its repository/environment settings are configured. Vercel handles the frontend through its Git integration. Follow [CI/CD setup](backend/README.md#cicd-with-github-actions) for the SSH settings, deployment directory, and production setup.
+GitHub Actions checks the backend, frontend, and mobile app on pull requests and `master`. After successful checks on `master`, it builds a signed Android APK on Expo EAS, saves the APK in Actions artifacts, and sends it through Telegram (a download link for files over the bot upload limit). Follow [APK and Telegram setup](mobile/README.md#cicd-apk-delivery-to-telegram) for the Expo project, signing setup, and GitHub secrets. AWS deployment is not part of this workflow. Vercel handles the frontend through its Git integration.
 
 From the repository root, install backend development dependencies and generate the Prisma client first. Mobile dependencies should already be installed from the mobile setup above.
 

@@ -178,43 +178,15 @@ The local mobile app can continue using its current development API until its re
 
 ## CI/CD with GitHub Actions
 
-The repository uses `master`. `.github/workflows/ci-cd.yml` runs **Backend checks** and **Frontend build** for pull requests to `master`, pushes to `master`, and manual runs. Backend checks include linting, TypeScript, all unit/integration tests against an isolated PostgreSQL 17 service, and production Docker builds. Integration files run sequentially because they update shared moderation settings. The frontend job builds with a placeholder HTTPS API URL; Vercel creates the deployed frontend with its real environment values.
+The repository uses `master`. `.github/workflows/ci-cd.yml` runs **Backend checks**, **Frontend build**, and **Mobile checks and bundle** for pull requests to `master`, pushes to `master`, and manual runs. Backend checks include linting, TypeScript, all unit/integration tests against an isolated PostgreSQL 17 service, and production Docker builds. Integration files run sequentially because they update shared moderation settings. CI uses placeholder API URLs only for frontend/mobile bundle checks.
 
-After both jobs pass on `master`, AWS deployment can transfer that exact commit's backend source over SSH, build the production stack on the server, back up PostgreSQL before migrations, run migrations/seeding, and verify public HTTPS readiness. Source archives exclude environment files, dependencies, and generated output. Runtime credentials remain on the server. SSH uses a pinned server host key.
+After all three checks pass on a push to `master`, the workflow builds a signed Android APK on Expo EAS, saves it as a GitHub Actions artifact, and delivers the APK (or a download link for large files) to Telegram. Manual runs on `master` can disable APK distribution using the `build_apk` checkbox. Pull requests run checks only and do not receive distribution credentials.
 
-### One-time AWS setup
+AWS deployment has been removed from GitHub Actions. No AWS settings or SSH secrets are used by this workflow. The manual AWS/Nginx setup above remains available when needed.
 
-Complete the manual AWS/HTTPS setup above first, including the initial certificate. The deployment user needs Docker/Compose, Bash, `curl`, `tar`, `gzip`, `sha256sum`, and `flock`, plus permission to run Docker. Configure SSH reachability from your GitHub runner's network. The workflow uses GitHub-hosted Ubuntu runners; if your server requires a fixed/private administration network, use a runner with access to that network and update the deploy job's `runs-on` accordingly.
+Follow the [mobile CI/CD and Telegram setup](../mobile/README.md#cicd-apk-delivery-to-telegram) for Expo initialization, signing credentials, the API URL, and the three GitHub Actions secrets. Require **Backend checks**, **Frontend build**, and **Mobile checks and bundle** on pull requests before merging to `master`.
 
-Choose an application directory writable by the deployment user, for example `/opt/socialrecipe`. Place the existing production environment at `/opt/socialrecipe/shared/.env.production`, owned by that user with permissions `600`. Keep the same production secrets and Compose project name (`socialrecipe-production`) so the database and certificate volumes are reused. CI/CD does not generate or replace these secrets.
-
-In **GitHub → Settings → Environments**, create `production`. Add these environment variables:
-
-- `AWS_HOST`: public IPv4 address or DNS hostname of the instance.
-- `AWS_USER`: SSH login, such as `ubuntu` or `ec2-user`.
-- `AWS_DEPLOY_PATH`: the absolute application directory, such as `/opt/socialrecipe`.
-- `AWS_SSH_PORT`: optional; defaults to `22`.
-
-Add these environment secrets (repository secrets are also supported):
-
-- `AWS_SSH_PRIVATE_KEY`: a dedicated CI deployment SSH private key. Install its matching public key in the deployment user's `~/.ssh/authorized_keys` on AWS.
-- `AWS_SSH_KNOWN_HOSTS`: the server's verified SSH host-key entry in `known_hosts` format. For a custom port, use the `[hostname]:port` form. Obtain/verify this server identity through a trusted SSH connection or the AWS console.
-
-Finally add the **repository variable** `ENABLE_AWS_DEPLOY=true` under **Settings → Secrets and variables → Actions → Variables**. Until it is set, CI runs and the AWS deployment job stays skipped. Use `production` environment branch restrictions to allow `master`. See [GitHub environment configuration](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments).
-
-Push the deployment files and application changes to `master`, or use **Actions → CI and AWS deployment → Run workflow** on `master` and enable the deployment checkbox. Pull requests never receive deployment credentials or run AWS deployment.
-
-### Releases and recovery
-
-Each deployment keeps source under `releases/<commit>-<run>-<attempt>` and a pre-migration SQL dump under `shared/backups`. The `current` symlink records the last release that passed HTTPS readiness. Deployments are serialized both in GitHub and on the server. Copy backups to storage outside the instance and manage release/backup retention for your available disk space.
-
-A failed rollout stops the workflow. Containers may already have changed even if the `current` link still points at the previous verified release. Inspect the server logs before retrying. For recovery, choose a retained release and explicitly rebuild/redeploy its Compose stack after checking migration compatibility. Database migrations and backup restores are operator-controlled; they are not automatically reversed.
-
-### Frontend deployment
-
-Connect `TonyCross23/SocialRecipe-Hub` to Vercel, set its root directory to `frontend`, production branch to `master`, and configure the real `VITE_API_URL` as described in the [frontend guide](../frontend/README.md#deploy-on-vercel). Vercel's Git integration handles preview and production deployments independently of the AWS job. No Vercel token is needed in GitHub Actions. See [Vercel Git deployments](https://vercel.com/docs/git).
-
-Require **Backend checks** and **Frontend build** on pull requests before merging to `master` to keep production-branch changes checked. Mobile deployment remains a separate future step.
+Vercel continues to handle frontend deployment through its Git integration. Set its root directory to `frontend`, production branch to `master`, and configure the real `VITE_API_URL` as described in the [frontend guide](../frontend/README.md#deploy-on-vercel).
 
 ## Run locally
 

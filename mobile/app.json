@@ -1,7 +1,13 @@
 {
   "expo": {
     "name": "SocialRecipe Hub",
-    "slug": "socialrecipe-hub",
+    "slug": "social-recipe",
+    "owner": "tonycross23",
+    "extra": {
+      "eas": {
+        "projectId": "ad826fc2-6d2e-41e8-8138-3f35ce315689"
+      }
+    },
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",

@@ -1,4 +1,4 @@
-name: CI and AWS deployment
+name: CI and Android APK
 
 on:
   pull_request:
@@ -7,10 +7,10 @@ on:
     branches: [master]
   workflow_dispatch:
     inputs:
-      deploy:
-        description: Deploy the checked master commit to AWS after CI passes
+      build_apk:
+        description: Build the Android APK and send it to Telegram after checks pass
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -69,8 +69,6 @@ jobs:
       - run: npm run build
       - name: Validate deployment shell scripts
         run: |
-          bash -n deploy/deploy-release.sh
-          bash -n deploy/github-deploy.sh
           sh -n deploy/nginx/40-configure-ssl.sh
           sh -n deploy/certbot/renew.sh
       - name: Build API and Nginx production images
@@ -101,30 +99,91 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-  deploy:
-    name: Deploy backend to AWS
-    needs: [backend, frontend]
-    if: >-
-      ${{ github.ref == 'refs/heads/master' &&
-          vars.ENABLE_AWS_DEPLOY == 'true' &&
-          (github.event_name == 'push' ||
-           (github.event_name == 'workflow_dispatch' && inputs.deploy)) }}
+  mobile:
+    name: Mobile checks and bundle
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    environment: production
-    concurrency:
-      group: production-backend
-      cancel-in-progress: false
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mobile
     env:
-      AWS_HOST: ${{ vars.AWS_HOST }}
-      AWS_USER: ${{ vars.AWS_USER }}
-      AWS_SSH_PORT: ${{ vars.AWS_SSH_PORT || '22' }}
-      AWS_DEPLOY_PATH: ${{ vars.AWS_DEPLOY_PATH }}
-      AWS_SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
-      AWS_SSH_KNOWN_HOSTS: ${{ secrets.AWS_SSH_KNOWN_HOSTS }}
+      EXPO_NO_DOTENV: "1"
+      EXPO_PUBLIC_API_URL: https://api.example.com/api/v1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Transfer the checked source and deploy over SSH
-        run: bash backend/deploy/github-deploy.sh
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Check Android JavaScript bundle
+        run: npx expo export --platform android --output-dir dist/ci
+
+  apk:
+    name: Build APK and send to Telegram
+    needs: [backend, frontend, mobile]
+    if: >-
+      ${{ github.ref == 'refs/heads/master' &&
+          (github.event_name == 'push' ||
+           (github.event_name == 'workflow_dispatch' && inputs.build_apk)) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mobile
+    concurrency:
+      group: android-apk-telegram
+      cancel-in-progress: false
+    env:
+      EXPO_NO_DOTENV: "1"
+      EXPO_PUBLIC_EAS_PROJECT_ID: ${{ vars.EXPO_PUBLIC_EAS_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Check distribution secrets before starting a cloud build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          for name in EXPO_TOKEN TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Add GitHub Actions secret $name. See mobile/README.md."
+              exit 1
+            fi
+          done
+      - run: npm ci
+      - name: Install the pinned EAS CLI
+        run: npm install --global eas-cli@25.2.0
+      - name: Build a signed APK on EAS and wait for completion
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          mkdir -p builds
+          eas build --platform android --profile preview --non-interactive --wait --json > builds/eas-result.json
+      - name: Download this build's APK
+        run: node scripts/distribute-apk.mjs download builds/eas-result.json builds/SocialRecipe-Hub.apk
+      - name: Keep the APK in GitHub Actions
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SocialRecipe-Hub-${{ github.sha }}
+          path: mobile/builds/SocialRecipe-Hub.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+      - name: Send APK or download link to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/distribute-apk.mjs send builds/eas-result.json builds/SocialRecipe-Hub.apk

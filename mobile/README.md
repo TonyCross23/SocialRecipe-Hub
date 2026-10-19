@@ -83,6 +83,61 @@ On the first build, EAS prompts to generate an Android signing keystore. Preserv
 
 The repository contains build configuration, **not a generated APK**. Creating the APK still requires the build tool download, Expo login/project setup, a reachable backend URL, and a successful cloud build.
 
+## CI/CD: APK delivery to Telegram
+
+`.github/workflows/ci-cd.yml` runs backend checks, the frontend build, and mobile TypeScript/tests/Android JavaScript bundling on pull requests and `master`. After all three jobs succeed on a **push to `master`**, it builds the signed APK using the existing EAS `preview` profile, downloads that build's APK, saves it in GitHub Actions artifacts for 14 days, and sends it to your Telegram chat. The APK script checks that the EAS result belongs to the same Git commit. No APK is built or sent for pull requests. AWS deployment is not in the workflow.
+
+You can also use **Actions → CI and Android APK → Run workflow** on `master`. Leave `build_apk` checked to distribute an APK, or uncheck it to run checks only. EAS queue/build time is included in the job's 180-minute timeout. EAS build usage is charged against your Expo account's quota/plan. Canceling a GitHub run may leave its cloud build running; check the Expo build dashboard before retrying.
+
+### 1. Prepare Expo once
+
+The app is configured with Expo project `@tonycross23/social-recipe` and EAS project ID `ad826fc2-6d2e-41e8-8138-3f35ce315689` in `app.json`. Use the Expo account that owns or can access this project. This repository already contains the mobile app; run EAS commands from `mobile/` without creating another Expo app.
+
+Complete the [installable APK setup](#installable-android-app-apk) above and finish one successful interactive preview build before enabling CI distribution. Expo needs an existing project and Android signing keystore for non-interactive builds. Keep the signing credentials so later APKs can update the installed app.
+
+The workflow uses EAS CLI `25.2.0`. From `mobile`, initialize with:
+
+```sh
+npx eas-cli@25.2.0 login
+npx eas-cli@25.2.0 init --id ad826fc2-6d2e-41e8-8138-3f35ce315689
+npx eas-cli@25.2.0 env:create --environment preview --name EXPO_PUBLIC_API_URL --value https://YOUR_BACKEND_HOST/api/v1 --visibility plaintext
+npm run build:apk
+```
+
+Use a real phone-accessible API URL in the EAS **preview** environment. The placeholder URL in the mobile CI job only checks bundling; it is not used for the installable APK. Local `.env` files are excluded from cloud uploads.
+
+If `eas init` saves `extra.eas.projectId` into app configuration, commit that project ID. If it asks you to configure the dynamic config manually, this app already supports `EXPO_PUBLIC_EAS_PROJECT_ID`: set the UUID locally, add the same public value in EAS's `preview` environment, and add it as a GitHub Actions **repository variable** named `EXPO_PUBLIC_EAS_PROJECT_ID`.
+
+Create an Expo personal access token in **Expo dashboard → Account settings → Access tokens**. Add it to GitHub as `EXPO_TOKEN`. See [Expo CI setup](https://docs.expo.dev/build/building-on-ci/) and [Expo access tokens](https://docs.expo.dev/accounts/programmatic-access/).
+
+### 2. Create a Telegram bot and find your chat ID
+
+1. In Telegram, open the official [@BotFather](https://t.me/BotFather).
+2. Send `/newbot`, choose a display name, and choose an available username ending in `bot`, such as `SocialRecipeBuildsBot`.
+3. BotFather gives you a token. Save it as the GitHub secret `TELEGRAM_BOT_TOKEN`; do not commit it or put it in an Expo public variable.
+4. Open your new bot's chat and press **Start**, then send a message such as `hello`. The bot needs that first message to contact your private chat.
+5. Open the following URL privately, replacing the placeholder with your own bot token:
+
+   ```text
+   https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
+   ```
+
+6. Find your message under `result` and copy **`message.chat.id`** into the GitHub secret `TELEGRAM_CHAT_ID`. If `result` is empty, send another message to your bot and refresh. The chat ID is the destination chat, not the bot's own ID. For a group, add the bot, send a command mentioning it, and use that group's `message.chat.id` (including its minus sign).
+
+This workflow only sends build files/messages, so you do not need to host a bot server or configure a webhook. Use a new bot for builds if an existing bot already has a webhook/poller; `getUpdates` does not work while a webhook is active. See the [official bot creation tutorial](https://core.telegram.org/bots/tutorial#obtain-your-bot-token) and [getUpdates API](https://core.telegram.org/bots/api#getupdates).
+
+### 3. Add GitHub secrets and run
+
+In **GitHub repository → Settings → Secrets and variables → Actions → Secrets**, add these three **repository secrets**:
+
+- `EXPO_TOKEN`: your Expo access token.
+- `TELEGRAM_BOT_TOKEN`: the token from BotFather.
+- `TELEGRAM_CHAT_ID`: the destination private/group chat ID.
+
+Push the workflow and app changes to `master` after Expo/signing setup is complete. All checks must pass before the APK job starts. Missing secrets stop that job before starting a cloud build. Distribution secrets are supplied only to the steps that need them.
+
+Telegram's hosted Bot API accepts document uploads up to **50 MB**. The workflow sends `SocialRecipe-Hub.apk` directly when it fits. For larger APKs (or a Telegram size rejection), it sends the exact EAS APK download link instead; the APK remains available in the run's GitHub artifacts too. APK links are shared with everyone in the selected chat and follow Expo's artifact availability/access settings. A failed Telegram request fails the job instead of reporting successful delivery. See [Telegram sendDocument limits](https://core.telegram.org/bots/api#senddocument).
+
 ## Structure
 
 ```text
